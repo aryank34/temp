@@ -19,13 +19,13 @@ printer = pprint.PrettyPrinter()
 mongo_password = os.environ.get("MONGO_PWD")
 
 #python-mongo connection string
-connection_string = f"mongodb+srv://admin:EC2024@employeeportal.yyyw48g.mongodb.net/?retryWrites=true&w=majority"
+connection_string = f"mongodb+srv://admin:{mongo_password}@employeeportal.yyyw48g.mongodb.net/?retryWrites=true&w=majority"
 client = MongoClient(connection_string)
 employeeData = client.sample_employee.employeeData
 userProvisioningData = client.sample_employee.UserProvisioningData
 
 def checkUserValidity(uid):
-    connection_string = f"mongodb+srv://admin:EC2024@employeeportal.yyyw48g.mongodb.net/?retryWrites=true&w=majority"
+    connection_string = f"mongodb+srv://admin:{mongo_password}@employeeportal.yyyw48g.mongodb.net/?retryWrites=true&w=majority"
     client = MongoClient(connection_string)
     userProvisioningData = client.sample_employee.UserProvisioningData
     query = userProvisioningData.count_documents({'id': uid}, limit=1)
@@ -81,7 +81,7 @@ for emp in emp:
 #to update the data in the database
 def edit_employee_data(data_obj, uid=1):
     try:
-        connection_string = f"mongodb+srv://admin:EC2024@employeeportal.yyyw48g.mongodb.net/?retryWrites=true&w=majority"
+        connection_string = f"mongodb+srv://admin:{mongo_password}@employeeportal.yyyw48g.mongodb.net/?retryWrites=true&w=majority"
         client = MongoClient(connection_string)
         employeeData = client.sample_employee.employeeData
         #send these object fields to database
