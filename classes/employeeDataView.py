@@ -8,7 +8,7 @@ printer = pprint.PrettyPrinter()
 #it tells that this file has a bunch of URLs defined in it
 employeeDataView = Blueprint('employeeDataView',__name__)
 
-@employeeDataView.route("/employeeData",methods = ['GET', 'POST'])
+@employeeDataView.route("/employeedata",methods = ['GET', 'POST'])
 #get data from database and send it to frontend
 def send_employee_data():
     try:
@@ -31,7 +31,7 @@ def send_employee_data():
 
 
 #get data from frontend, validate the data, mask the data and then update in the database
-@employeeDataView.route("/employeeData/edit", methods = ['GET', 'PATCH'])
+@employeeDataView.route("/employeedata/edit", methods = ['GET', 'PATCH'])
 def editEmployeeData():
     try:
         if request.method == 'PATCH':
@@ -68,7 +68,7 @@ def editEmployeeData():
     
 
 #get the documents/files from frontend, save it in a location, then save the path in mongodb
-@employeeDataView.route('/employeeData/documents', methods=['GET','POST'])
+@employeeDataView.route('/employeedata/documents', methods=['GET','POST'])
 def getEmployeeDocuments(uid):
     '''
     1. uploading file to server
