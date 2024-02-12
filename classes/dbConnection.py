@@ -59,9 +59,7 @@ def get_employee_data(id):
 
         ]
         #send data to frontend
-        response = make_response(jsonify(all_employee_data[0]), 201)
-        response.headers.add("Access-Control-Allow-Origin", "*")
-        return response
+        return make_response(jsonify(all_employee_data[0]), 201)
     
     except Exception as e:
         return make_response({"Error is fetching basic info: ",e}, 500)
