@@ -18,7 +18,8 @@ frontend_url = os.environ.get("FRONTEND")
 app = create_app()
 
 # give * for allowing all the urls, give frontend url in production
-CORS(app, origins={frontend_url})
+# CORS(app, origins={frontend_url})
+CORS(app, origins="http://localhost:3000")
 
 if __name__ == '__main__':
     app.run(debug = True)
