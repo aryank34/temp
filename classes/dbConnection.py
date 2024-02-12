@@ -39,7 +39,7 @@ def replace_null(value, placeholder='NA'):
 #get data from mongodb
 def get_employee_data(id):
     try:
-        connection_string = f"mongodb+srv://admin:EC2024@employeeportal.yyyw48g.mongodb.net/?retryWrites=true&w=majority"
+        connection_string = f"mongodb+srv://admin:{mongo_password}@employeeportal.yyyw48g.mongodb.net/?retryWrites=true&w=majority"
         client = MongoClient(connection_string)
         employeeData = client.sample_employee.employeeData
         employees = employeeData.find({'emp_id':id},{'id':1,'FirstName':1,'LastName':1,'mail':1,'team':1,'Designation':1,'ContactNo':1,'Address':1,'ReportingTo':1,'status':1,'Date_of_Joining':1,'Designation':1})
