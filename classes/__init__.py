@@ -19,6 +19,6 @@ def create_app():
 
     #register the routes
     app.register_blueprint(loginView)
-    app.register_blueprint(employeeDataView, url_prefix='/dashboard/')
+    app.register_blueprint(employeeDataView)
 
     return app
