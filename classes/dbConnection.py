@@ -25,9 +25,9 @@ employeeData = client.sample_employee.employeeData
 userProvisioningData = client.sample_employee.UserProvisioningData
 
 def checkUserValidity(uid):
-    connection_string = f"mongodb+srv://admin:{mongo_password}@employeeportal.yyyw48g.mongodb.net/?retryWrites=true&w=majority"
-    client = MongoClient(connection_string)
-    userProvisioningData = client.sample_employee.UserProvisioningData
+    # connection_string = f"mongodb+srv://admin:{mongo_password}@employeeportal.yyyw48g.mongodb.net/?retryWrites=true&w=majority"
+    # client = MongoClient(connection_string)
+    # userProvisioningData = client.sample_employee.UserProvisioningData
     query = userProvisioningData.count_documents({'id': uid}, limit=1)
     
     return  make_response({"message": query != 0}, 200)
