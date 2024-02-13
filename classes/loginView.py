@@ -1,6 +1,5 @@
 from flask import jsonify, Blueprint, request, make_response
 from .dbConnection import checkUserValidity
-from pymongo import MongoClient
 
 loginView = Blueprint('loginView',__name__)
 
@@ -8,8 +7,8 @@ loginView = Blueprint('loginView',__name__)
 def checkUser():
     try:
         if request.method == 'POST':
-            uid = request.json.get('uid')
-            return checkUserValidity(uid)
+            uid = request.json.get('uid') #takes uid from frontend
+            return checkUserValidity(uid) #if correct uid, returns jwt, expiry in 15 minutes
         if request.method == 'GET':
             return make_response('',200)
 

@@ -8,11 +8,22 @@ from bson.objectid import ObjectId
 from dotenv import load_dotenv, find_dotenv
 import os
 
+#to compare UUID
+from bson.binary import UuidRepresentation
+from uuid import UUID
+
+#to create expiry time of token (15mins)
+from datetime import datetime, timedelta
+
 load_dotenv(find_dotenv())
 
-#Pretty printer - dev mode only
-import pprint
-printer = pprint.PrettyPrinter()
+#for creating jwt 
+# import jwt
+import jwt
+
+
+# import sys
+# print(sys.path)
 
 #database connection
 #get the fields from .env file
@@ -20,14 +31,43 @@ mongo_password = os.environ.get("MONGO_PWD")
 
 #python-mongo connection string
 connection_string = f"mongodb+srv://admin:{mongo_password}@employeeportal.yyyw48g.mongodb.net/?retryWrites=true&w=majority"
-client = MongoClient(connection_string)
+client = MongoClient(connection_string, UuidRepresentation="standard")
 employeeData = client.sample_employee.employeeData
 userProvisioningData = client.sample_employee.UserProvisioningData
 
 def checkUserValidity(uid):
-    query = userProvisioningData.count_documents({'id': uid}, limit=1)
-    
-    return  make_response({"message": query != 0}, 200)
+    try:
+        # print(UUID(uid))
+        #get the user by matching the uuid from db
+        user = userProvisioningData.find_one({'id':UUID(uid)},{'_id':0,'Name':1,'id':1})
+        user['id'] = str(user['id']) #uuid cant be sent directly, convert to string first
+        # print(type(user))
+
+        #create a token
+
+        #set expiry time of token
+        exp_time = datetime.now() + timedelta(minutes=15) #15 minutes expiry time
+        exp_epoch_time = int(exp_time.timestamp())
+
+        #payload
+        payload = {
+            "payload": user,
+            "exp": exp_epoch_time
+        }
+        print(payload)
+
+        #secret key
+        secret = os.environ.get('SECRET_KEY')
+
+        #jwtoken
+        jwtoken = jwt.encode(payload, secret, algorithm="HS256")
+        print(jwtoken)
+
+        return make_response({"token":jwtoken}, 200)
+
+    except Exception as e:
+        print(e)
+        return make_response({"message":"No User Found"}, 500)
 
 #giving NA to replace empty value
 def replace_null(value, placeholder='NA'):
