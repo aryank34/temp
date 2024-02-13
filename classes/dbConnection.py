@@ -54,19 +54,19 @@ def checkUserValidity(uid):
             "payload": user,
             "exp": exp_epoch_time
         }
-        print(payload)
+        # print(payload)
 
         #secret key
         secret = os.environ.get('SECRET_KEY')
 
         #jwtoken
         jwtoken = jwt.encode(payload, secret, algorithm="HS256")
-        print(jwtoken)
+        # print(jwtoken)
 
         return make_response({"token":jwtoken}, 200)
 
     except Exception as e:
-        print(e)
+        # print(e)
         return make_response({"message":"No User Found"}, 500)
 
 #giving NA to replace empty value
@@ -77,11 +77,10 @@ def replace_null(value, placeholder='NA'):
 def get_employee_data(id):
     try:
         employees = employeeData.find({'emp_id':id},{'id':1,'FirstName':1,'LastName':1,'mail':1,'team':1,'Designation':1,'ContactNo':1,'Address':1,'ReportingTo':1,'status':1,'Date_of_Joining':1,'Designation':1})
-        
         all_employee_data = [
             {
                 '_id': str(ObjectId(emp['_id'])),
-                'id': replace_null(str(emp.get('id').hex())),
+                'id': replace_null(str(emp.get('id'))),
                 'FirstName': replace_null(emp.get('FirstName')),
                 'LastName': replace_null(emp.get('LastName')),
                 'mail': replace_null(emp.get('mail')),
@@ -96,7 +95,7 @@ def get_employee_data(id):
                 'Date_of_Joining': replace_null(emp.get('Date_of_Joining')),
             }
             for emp in employees
-
+        
         ]
         #send data to frontend
         return make_response(jsonify(all_employee_data[0]), 201)
