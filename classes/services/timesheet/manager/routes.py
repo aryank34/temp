@@ -7,7 +7,7 @@ from .utils import create_timesheet, fetch_timesheets
 import sys
 
 sys.path.insert(0, "C:\\Users\\Lenovo\\Desktop\\Aryan Works\\Encryption Consulting\\Employee Portal\\Employee Portal Project\\backend\\classes")
-import tokenAuth
+import classess.tokenAuth
 
 # from backend.classes.tokenAuth import tokenAuth
 auth = tokenAuth.tokenAuth()
