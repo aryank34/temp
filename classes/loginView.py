@@ -3,10 +3,10 @@ from .dbConnection import checkUserValidity
 
 loginView = Blueprint('loginView',__name__)
 
-@loginView.route("/login", methods =['GET'])
+@loginView.route("/login", methods =['GET',"POST"])
 def checkUser():
     try:
-        if request.method == 'GET':
+        if request.method == 'POST':
             id = request.json.get('id') #takes uid from frontend
             return checkUserValidity(id) #if correct uid, returns jwt, expiry in 15 minutes
         # if request.method == 'GET':

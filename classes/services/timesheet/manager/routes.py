@@ -6,6 +6,9 @@ from .utils import create_timesheet, fetch_timesheets
 
 import sys
 
+# sys.path.insert(0, "C:\\Users\\Lenovo\\Desktop\\Aryan Works\\Encryption Consulting\\Employee Portal\\Employee Portal Project\\backend\\classes")
+# sys.path.insert(0, "\\classes")
+# import tokenAuth
 from ....tokenAuth import tokenAuth
 
 # from backend.classes.tokenAuth import tokenAuth
@@ -14,7 +17,7 @@ auth = tokenAuth()
 
 manager_timesheet_bp = Blueprint("manager_timesheet", __name__)
 
-@manager_timesheet_bp.route("/timesheet/manage", methods=["GET"])
+@manager_timesheet_bp.route("/timesheet/manage", methods=["POST"])
 @auth.token_auth("/timesheet/manage")
 # @auth.token_auth("/timesheet/manage")
 def manage_timesheet():

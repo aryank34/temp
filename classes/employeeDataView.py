@@ -32,12 +32,13 @@ def send_employee_data():
 
 
 #get data from frontend, validate the data, mask the data and then update in the database
-@employeeDataView.route("/dashboard/employeedata/edit", methods = ['GET', 'PATCH'])
+@employeeDataView.route("/dashboard/employeedata/edit", methods = ['GET', 'PUT'])
 @auth.token_auth("/dashboard/employeedata/edit")
 def editEmployeeData():
     try:
-        if request.method == 'PATCH':
-            id = request.json.get('id')
+        if request.method == 'PUT':
+            # id = request.json.get('id')
+            id = tokenAuth.token_decode(request.headers.get('Authorization'))['payload']['id']
             FirstName = request.json.get('FirstName')
             LastName = request.json.get('LastName')
             ContactNo = request.json.get('ContactNo')
