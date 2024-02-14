@@ -35,19 +35,21 @@ client = MongoClient(connection_string, UuidRepresentation="standard")
 employeeData = client.sample_employee.employeeData
 userProvisioningData = client.sample_employee.UserProvisioningData
 
-def checkUserValidity(uid):
+def checkUserValidity(id):
     try:
         # print(UUID(uid))
         #get the user by matching the uuid from db
-        user = userProvisioningData.find_one({'id':UUID(uid)},{'_id':0,'Name':1,'id':1})
+        # user = userProvisioningData.find_one({'id':UUID(uid)},{'_id':0,'Name':1,'id':1})
+        user = employeeData.find_one({'id':UUID(id)},{'_id':0,'givenName':1,'id':1,"Role":1})
         user['id'] = str(user['id']) #uuid cant be sent directly, convert to string first
-        # print(type(user))
+        # print(user)
 
         #create a token
 
         #set expiry time of token
-        exp_time = datetime.now() + timedelta(minutes=15) #15 minutes expiry time
+        exp_time = datetime.now() + timedelta(hours=1) #15 minutes expiry time
         exp_epoch_time = int(exp_time.timestamp())
+        # print(exp_epoch_time)
 
         #payload
         payload = {
@@ -58,16 +60,18 @@ def checkUserValidity(uid):
 
         #secret key
         secret = os.environ.get('SECRET_KEY')
+        algo = os.environ.get('ALGORITHM')
+        # print(algo)
 
         #jwtoken
-        jwtoken = jwt.encode(payload, secret, algorithm="HS256")
-        # print(jwtoken)
+        jwtoken = jwt.encode(payload, secret, algorithm=algo)
+        # print(jwt.encode(payload, secret, algorithm=algo))
 
         return make_response({"token":jwtoken}, 200)
 
     except Exception as e:
         # print(e)
-        return make_response({"message":"No User Found"}, 500)
+        return make_response({"message":str(e)}, 500)
 
 #giving NA to replace empty value
 def replace_null(value, placeholder='NA'):
@@ -76,7 +80,7 @@ def replace_null(value, placeholder='NA'):
 #get data from mongodb
 def get_employee_data(id):
     try:
-        employees = employeeData.find({'emp_id':id},{'id':1,'FirstName':1,'LastName':1,'mail':1,'team':1,'Designation':1,'ContactNo':1,'Address':1,'ReportingTo':1,'status':1,'Date_of_Joining':1,'Designation':1})
+        employees = employeeData.find({'id':UUID(id)},{'id':1,'FirstName':1,'LastName':1,'mail':1,'team':1,'Designation':1,'ContactNo':1,'Address':1,'ReportingTo':1,'status':1,'Date_of_Joining':1,'Designation':1})
         all_employee_data = [
             {
                 '_id': str(ObjectId(emp['_id'])),
@@ -112,21 +116,21 @@ for emp in emp:
 """
 
 #to update the data in the database
-def edit_employee_data(data_obj, uid=1):
+def edit_employee_data(data_obj, id):
     try:
         #send these object fields to database
         # print(data_obj)
+        # print(id)
         data_obj = {
             "$set":data_obj
         }
         #update the user data using this id and data_obj
         #employeeData.update_one({"id":logged_in_user_id}, data_obj) #use this for production app
 
-        if(employeeData.count_documents({"emp_id":uid},limit = 1) == 1):
-            employeeData.update_one({"emp_id":uid}, data_obj) #only for development check
+        if(employeeData.count_documents({"id":UUID(id)},limit = 1) == 1):
+            employeeData.update_one({"id":UUID(id)}, data_obj) 
             return make_response({"message":"Data Edited"}, 201)
         else:
-            print("here")
             return make_response({"message":"No record Found"},202)
     except Exception as e:
         error_message = str(e)

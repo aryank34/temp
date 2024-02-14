@@ -14,11 +14,19 @@ def create_app():
     app.config['SECRET KEY'] = secret_key 
 
     #import the routes
+
+    #login
     from .loginView import loginView
+    #employee data
     from .employeeDataView import employeeDataView
+    #timesheet
+    from .services.timesheet.routes import timesheet_bp
+    from .services.timesheet.manager.routes import manager_timesheet_bp
 
     #register the routes
     app.register_blueprint(loginView)
-    app.register_blueprint(employeeDataView, url_prefix='/dashboard/')
+    app.register_blueprint(employeeDataView)
+    app.register_blueprint(timesheet_bp)
+    app.register_blueprint(manager_timesheet_bp)
 
     return app

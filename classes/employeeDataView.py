@@ -1,26 +1,27 @@
 from .dbConnection import get_employee_data,edit_employee_data
 from flask import jsonify, Blueprint, request, make_response
 
-#Pretty printer - dev mode only
-import pprint
-printer = pprint.PrettyPrinter()
+from .tokenAuth import tokenAuth
+
+#create object of authMongo class
+auth = tokenAuth()
 
 #it tells that this file has a bunch of URLs defined in it
 employeeDataView = Blueprint('employeeDataView',__name__)
 
-@employeeDataView.route("/employeedata",methods = ['GET', 'POST'])
+@employeeDataView.route("/dashboard/employeedata",methods = ['GET'])
+@auth.token_auth("/dashboard/employeedata")
 #get data from database and send it to frontend
 def send_employee_data():
     try:
-        if request.method == 'POST':
-            id = request.json.get('uid')
-            
-            #printer.pprint(list(emp))
+        if request.method == 'GET':
+            id = tokenAuth.token_decode(request.headers.get('Authorization'))['payload']['id']
+            # print(id)
 
             #get employee data basic info and send it to frontend
             return get_employee_data(id)
-        if request.method == 'GET':
-            return make_response('',204)
+        # if request.method == 'GET':
+        #     return make_response('',204)
     
     except Exception as e:
         error_message = str(e)
@@ -31,11 +32,12 @@ def send_employee_data():
 
 
 #get data from frontend, validate the data, mask the data and then update in the database
-@employeeDataView.route("/employeedata/edit", methods = ['GET', 'PATCH'])
+@employeeDataView.route("/dashboard/employeedata/edit", methods = ['GET', 'PATCH'])
+@auth.token_auth("/dashboard/employeedata/edit")
 def editEmployeeData():
     try:
         if request.method == 'PATCH':
-            uid = request.json.get('uid')
+            id = request.json.get('id')
             FirstName = request.json.get('FirstName')
             LastName = request.json.get('LastName')
             ContactNo = request.json.get('ContactNo')
@@ -43,6 +45,19 @@ def editEmployeeData():
             Emergency_Contact_Name = request.json.get('Emergency_Contact_Name')
             Emergency_Contact_Number = request.json.get('Emergency_Contact_Number')
             Emergency_Relation = request.json.get('Emergency_Relation')
+
+            #use after frontend sends the correct token with this data - i think
+            # payload = tokenAuth.token_decode(request.headers.get('Authorization'))['payload']
+            
+        
+            # id = payload['id']
+            # FirstName = payload['FirstName']
+            # LastName = payload['LastName']
+            # ContactNo = payload['ContactNo']
+            # Address = payload['Address']
+            # Emergency_Contact_Name = payload['Emergency_Contact_Name']
+            # Emergency_Contact_Number = payload['Emergency_Contact_Number']
+            # Emergency_Relation = payload['Emergency_Relation']
 
             #printer.pprint(name)
             emp_obj = {"FirstName":FirstName,
@@ -54,7 +69,7 @@ def editEmployeeData():
                     "Emergency_Relation":Emergency_Relation}
             #update the data in the database
             
-            return edit_employee_data(emp_obj, uid)
+            return edit_employee_data(emp_obj, id)
             
 
         #return "Edit Page"
@@ -68,7 +83,8 @@ def editEmployeeData():
     
 
 #get the documents/files from frontend, save it in a location, then save the path in mongodb
-@employeeDataView.route('/employeedata/documents', methods=['GET','POST'])
+@employeeDataView.route('/dashboard/employeedata/documents', methods=['GET','POST'])
+@auth.token_auth("/dashboard/employeedata/documents")
 def getEmployeeDocuments(uid):
     '''
     1. uploading file to server
