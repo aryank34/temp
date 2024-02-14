@@ -6,11 +6,10 @@ from .utils import create_timesheet, fetch_timesheets
 
 import sys
 
-sys.path.insert(0, "\\classes\\")
-import tokenAuth
+from ....tokenAuth import tokenAuth
 
 # from backend.classes.tokenAuth import tokenAuth
-auth = tokenAuth.tokenAuth()
+auth = tokenAuth()
 #create object of authMongo class
 
 manager_timesheet_bp = Blueprint("manager_timesheet", __name__)
