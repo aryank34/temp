@@ -80,10 +80,10 @@ def replace_null(value, placeholder='NA'):
 #get data from mongodb
 def get_employee_data(id):
     try:
-        employees = employeeData.find({'id':UUID(id)},{'id':1,'FirstName':1,'LastName':1,'mail':1,'team':1,'Designation':1,'ContactNo':1,'Address':1,'ReportingTo':1,'status':1,'Date_of_Joining':1,'Designation':1})
+        employees = employeeData.find({'id':UUID(id)},{'_id':0,'id':1,'emp_id':1,'FirstName':1,'LastName':1,'mail':1,'team':1,'Designation':1,'ContactNo':1,'Address':1,'ReportingTo':1,'status':1,'Date_of_Joining':1,'Emergency_Contact_Name':1,'Emergency_Contact_Number':1,'Emergency_Relation':1})
         all_employee_data = [
             {
-                '_id': str(ObjectId(emp['_id'])),
+                # '_id': str(ObjectId(emp['_id'])),
                 'id': replace_null(str(emp.get('id'))),
                 'FirstName': replace_null(emp.get('FirstName')),
                 'LastName': replace_null(emp.get('LastName')),
@@ -97,6 +97,10 @@ def get_employee_data(id):
                 'Date_of_Joining': replace_null(emp.get('Date_of_Joining')),
                 'status': replace_null(emp.get('status')),
                 'Date_of_Joining': replace_null(emp.get('Date_of_Joining')),
+                'Emergency_Contact_Name': replace_null(emp.get('Emergency_Contact_Name')),
+                'Emergency_Contact_Number': replace_null(emp.get('Emergency_Contact_Number')),
+                'Emergency_Relation': replace_null(emp.get('Emergency_Relation')),
+                'emp_id': replace_null(emp.get('emp_id'))
             }
             for emp in employees
         
