@@ -94,7 +94,7 @@ def getEmployeeDocuments(uid):
     4. creating an endpoint to read the file
     '''
     if request.method == 'POST':
-        file = request.files['file']
+        # file = request.files['aadhar']
         # file.save(f"/uploads/{file.filename}")
         return "File"
     if request.method == 'GET':

@@ -40,7 +40,7 @@ def checkUserValidity(id):
         # print(UUID(uid))
         #get the user by matching the uuid from db
         # user = userProvisioningData.find_one({'id':UUID(uid)},{'_id':0,'Name':1,'id':1})
-        user = employeeData.find_one({'id':UUID(id)},{'_id':0,'givenName':1,'id':1,"Role":1})
+        user = employeeData.find_one({'id':UUID(id)},{'_id':0,'FirstName':1,'LastName':1,'id':1,"Role":1})
         user['id'] = str(user['id']) #uuid cant be sent directly, convert to string first
         # print(user)
 
