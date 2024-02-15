@@ -4,7 +4,7 @@ from flask import Blueprint, jsonify, make_response, request
 # Import custom module
 from .utils import userType
 
-from ...tokenAuth import tokenAuth
+from ..loginAuth.tokenAuth import tokenAuth
 auth = tokenAuth()
 
 # Create Flask app instance

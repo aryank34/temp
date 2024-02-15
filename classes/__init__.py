@@ -16,9 +16,9 @@ def create_app():
     #import the routes
 
     #login
-    from .loginView import loginView
+    from .services.loginAuth.loginView import loginView
     #employee data
-    from .employeeDataView import employeeDataView
+    from .services.EmployeeData.employeeDataView import employeeDataView
     #timesheet
     from .services.timesheet.routes import timesheet_bp
     from .services.timesheet.manager.routes import manager_timesheet_bp

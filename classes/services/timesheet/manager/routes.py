@@ -4,7 +4,7 @@ from flask import Blueprint, jsonify, request
 # Import custom module
 from .utils import create_timesheet, fetch_timesheets
 
-from ....tokenAuth import tokenAuth
+from ...loginAuth.tokenAuth import tokenAuth
 auth = tokenAuth()
 
 manager_timesheet_bp = Blueprint("manager_timesheet", __name__)
