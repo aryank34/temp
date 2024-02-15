@@ -15,6 +15,10 @@ from uuid import UUID
 #to create expiry time of token (15mins)
 from datetime import datetime, timedelta
 
+#upload documents
+from werkzeug.utils import secure_filename
+from gridfs import GridFS
+
 load_dotenv(find_dotenv())
 
 #for creating jwt 
@@ -32,6 +36,7 @@ mongo_password = os.environ.get("MONGO_PWD")
 #python-mongo connection string
 connection_string = f"mongodb+srv://admin:{mongo_password}@employeeportal.yyyw48g.mongodb.net/?retryWrites=true&w=majority"
 client = MongoClient(connection_string, UuidRepresentation="standard")
+db = client.sample_employee
 employeeData = client.sample_employee.employeeData
 userProvisioningData = client.sample_employee.UserProvisioningData
 
@@ -141,6 +146,30 @@ def edit_employee_data(data_obj, id):
         return ({'error in updatingMongoDb': error_message}, 500)
 
 
+def upload_documents(id, file_data):
+    fs = GridFS(db)  
+    fs = GridFS(db, collection='employeeData')
+
+    if file_data is not None:
+        filename = secure_filename(file_data.filename)
+            # print(filename)
+                
+        # Fetch the user from MongoDB based on the unique ID
+        employeeData = db.employeeData.find_one({'id': UUID(id)})
+        
+        if employeeData:
+            # Save file to MongoDB using GridFS
+            #with fs.new_file(filename=file_data, content_type=file_data.content_type) as grid_file:
+            grid_file= fs.put(file_data.stream, filename=filename, content_type=file_data.content_type, id=UUID(id)) 
+                #grid_file.write(file_data.stream.read())
+            # Associate the file with the user in the employeeData collection
+            db.employeeData.update_one({'id': UUID(id)}, {'$set': {'file_id':grid_file}})
+            db.employeeData.update_one({'id': UUID(id)}, {'$set': {'file_id': grid_file}})
+            return make_response({"message":'Document Successfully Uploaded'}, 200)
+        else:
+            return make_response({"message":'User not found'}, 404)
+    else:
+        return make_response({"message":'File not provided'}, 400)
 
 
 

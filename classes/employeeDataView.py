@@ -1,8 +1,7 @@
-from .dbConnection import get_employee_data,edit_employee_data
+from .dbConnection import get_employee_data,edit_employee_data,upload_documents
 from flask import jsonify, Blueprint, request, make_response
-from datetime import datetime
-
 from .tokenAuth import tokenAuth
+
 
 #create object of authMongo class
 auth = tokenAuth()
@@ -87,7 +86,7 @@ def editEmployeeData():
 #get the documents/files from frontend, save it in a location, then save the path in mongodb
 @employeeDataView.route('/dashboard/employeedata/documents', methods=['GET','POST'])
 @auth.token_auth("/dashboard/employeedata/documents")
-def getEmployeeDocuments(uid):
+def getEmployeeDocuments():
     '''
     1. uploading file to server
     2. saving file to filesystem with unique filename
@@ -95,9 +94,10 @@ def getEmployeeDocuments(uid):
     4. creating an endpoint to read the file
     '''
     if request.method == 'POST':
-        file = request.files['aadhar']
-        file.save(f"/uploads/{file.filename}")
+            # Extract file in form of json JSON 
+            #uid = request.json.get('id') #not used currently, will be used in SuperAdmin properties to CRUD
+            id = tokenAuth.token_decode(request.headers.get('Authorization'))['payload']['id']
+            # print(id)
+            file_data = request.files['file']
 
-        return "File"
-    if request.method == 'GET':
-        return "Check File Path in db"
+            return upload_documents(id, file_data)
