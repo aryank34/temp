@@ -37,7 +37,7 @@ def send_employee_data():
 def editEmployeeData():
     try:
         if request.method == 'PUT':
-            uid = request.json.get('id') #not used currently, will be used in SuperAdmin properties to CRUD
+            # uid = request.json.get('id') #not used currently, will be used in SuperAdmin properties to CRUD
             id = tokenAuth.token_decode(request.headers.get('Authorization'))['payload']['id']
             FirstName = request.json.get('FirstName')
             LastName = request.json.get('LastName')
