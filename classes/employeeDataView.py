@@ -1,5 +1,6 @@
 from .dbConnection import get_employee_data,edit_employee_data
 from flask import jsonify, Blueprint, request, make_response
+from datetime import datetime
 
 from .tokenAuth import tokenAuth
 
@@ -94,8 +95,9 @@ def getEmployeeDocuments(uid):
     4. creating an endpoint to read the file
     '''
     if request.method == 'POST':
-        # file = request.files['aadhar']
-        # file.save(f"/uploads/{file.filename}")
+        file = request.files['aadhar']
+        file.save(f"/uploads/{file.filename}")
+
         return "File"
     if request.method == 'GET':
         return "Check File Path in db"

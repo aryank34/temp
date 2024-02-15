@@ -4,29 +4,21 @@ from flask import Blueprint, jsonify, request
 # Import custom module
 from .utils import create_timesheet, fetch_timesheets
 
-import sys
-
-# sys.path.insert(0, "C:\\Users\\Lenovo\\Desktop\\Aryan Works\\Encryption Consulting\\Employee Portal\\Employee Portal Project\\backend\\classes")
-# sys.path.insert(0, "\\classes")
-# import tokenAuth
 from ....tokenAuth import tokenAuth
-
-# from backend.classes.tokenAuth import tokenAuth
 auth = tokenAuth()
-#create object of authMongo class
 
 manager_timesheet_bp = Blueprint("manager_timesheet", __name__)
 
-@manager_timesheet_bp.route("/timesheet/manage", methods=["POST"])
-@auth.token_auth("/timesheet/manage")
-# @auth.token_auth("/timesheet/manage")
+@manager_timesheet_bp.route("/timesheet/manager/assign", methods=["GET"])
+@auth.token_auth("/timesheet/manager/assign")
 def manage_timesheet():
     try:
         # Get the 'uid' from the request's JSON data
-        uid = request.json.get("uid")
+        # uuid = request.json.get("id")
+        uuid = tokenAuth.token_decode(request.headers.get('Authorization'))['payload']['id']
 
         # Call the fetch_managerTimesheets function from the utils module
-        managerTimesheets_response = fetch_timesheets(uid, status="Manage")
+        managerTimesheets_response = fetch_timesheets(uuid, status="Assign")
 
         # Return the response from the userType function
         return managerTimesheets_response
@@ -36,14 +28,35 @@ def manage_timesheet():
         error_message = str(e)
         return jsonify({'error': error_message}), 500
 
-@manager_timesheet_bp.route("/timesheet/create", methods=["POST"])
+@manager_timesheet_bp.route("/timesheet/manager/review", methods=["GET"])
+@auth.token_auth("/timesheet/manager/review")
+def review_timesheet():
+    try:
+        # Get the 'uid' from the request's JSON data
+        # uuid = request.json.get("id")
+        uuid = tokenAuth.token_decode(request.headers.get('Authorization'))['payload']['id']
+
+        # Call the fetch_managerTimesheets function from the utils module
+        managerTimesheets_response = fetch_timesheets(uuid, status="Review")
+
+        # Return the response from the userType function
+        return managerTimesheets_response
+
+    except Exception as e:
+        # Handle any exceptions and return an error response
+        error_message = str(e)
+        return jsonify({'error': error_message}), 500
+
+@manager_timesheet_bp.route("/timesheet/manager/create", methods=["POST"])
+@auth.token_auth("/timesheet/manager/create")
 def create_new_timesheet():
     try:
         # Get the JSON data sent with the POST request
         payload = request.get_json()
 
         # Access the 'uid' field
-        uid = payload.get('uid')
+        # uuid = payload.get('id')
+        uuid = tokenAuth.token_decode(request.headers.get('Authorization'))['payload']['id']
 
         # Access the 'timesheet' field, which is a nested JSON object
         timesheet = payload.get('timesheet')
@@ -58,7 +71,7 @@ def create_new_timesheet():
         # assign_group_id = timesheet.get('assignGroupID')
 
         # Call the create_timesheet function from the utils module
-        create_timesheet_response = create_timesheet(uid, timesheet)
+        create_timesheet_response = create_timesheet(uuid, timesheet)
 
         # Return the response from the userType function
         return create_timesheet_response
@@ -68,14 +81,16 @@ def create_new_timesheet():
         error_message = str(e)
         return jsonify({'error': error_message}), 500
 
-@manager_timesheet_bp.route("/timesheet/draft", methods=["GET"])
+@manager_timesheet_bp.route("/timesheet/manager/draft", methods=["GET"])
+@auth.token_auth("/timesheet/manager/draft")
 def get_draft_timesheet():
     try:
         # Get the 'uid' from the request's JSON data
-        uid = request.json.get("uid")
+        # uuid = request.json.get("id")
+        uuid = tokenAuth.token_decode(request.headers.get('Authorization'))['payload']['id']
 
         # Call the fetch_managerTimesheets function from the utils module
-        managerTimesheets_response = fetch_timesheets(uid, status="Draft")
+        managerTimesheets_response = fetch_timesheets(uuid, status="Draft")
 
         # Return the response from the userType function
         return managerTimesheets_response
@@ -85,8 +100,4 @@ def get_draft_timesheet():
         error_message = str(e)
         return jsonify({'error': error_message}), 500
 
-# @manager_timesheet_bp.route("/timesheet/assign", methods=["POST"])
-# def assign_timesheet_to_employee():
-#     data = request.json
-#     result = assign_timesheet(data)
-#     return jsonify(result)
+
