@@ -236,7 +236,8 @@ def send_document(id,file_type):
         file_id = file_data['file_id'][file_type]
         # print(file_id)
         file_doc= fs.get(file_id)
-        filename = f"{file_type}.{file_doc.content_type.split("/")[1]}"
+        file_extension = file_doc.content_type.split("/")[1]
+        filename = f"{file_type}.{file_extension}"
         # print(filename)
 
         # print(aadhar)
