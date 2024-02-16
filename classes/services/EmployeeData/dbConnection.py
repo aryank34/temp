@@ -1,4 +1,4 @@
-from flask import make_response,jsonify
+from flask import make_response,jsonify, send_file, Response
 from pymongo import MongoClient
 
 #to get Object Id from mongodb
@@ -145,31 +145,107 @@ def edit_employee_data(data_obj, id):
         error_message = str(e)
         return ({'error in updatingMongoDb': error_message}, 500)
 
+def check_documents(id):
+    # try:
+        # result = employeeData.find_one({"id":UUID(id)},{"_id":0,"file_id":1})
+    emp = employeeData.find_one({"id":UUID(id)})
+    obj = {'aadhar':False,'pan':False}
+    if 'file_id' in emp:
+    # print(result)
+        result = emp['file_id']
+        # print(result)
+        if 'aadhar' in result:
+            obj['aadhar'] = True
+        if 'pan' in result:
+            obj['pan'] = True
+        # print(obj)
+        return make_response({"Message":obj}, 200)
+    else:
+        return make_response({"Message":obj}, 200)
+    # except Exception as e:
+    #     return make_response({"ERROR":str(e)})
 
-def upload_documents(id, file_data):
-    fs = GridFS(db)  
+def upload_documents(id, file_response):
+    # fs = GridFS(db)  
     fs = GridFS(db, collection='employeeData')
+    # print(list(file_response))
+    file_field = ""
+    # if list[file_response][0] == 'aadhar':
+    if 'aadhar' in file_response:
+        file_field = 'aadhar'
+    # elif list[file_response][0] == 'pan':
+    elif 'pan' in file_response:
+        file_field = 'pan'
+    # print(file_field)
+        
+    file_data = file_response[file_field]
+    # print(file_data)
 
     if file_data is not None:
         filename = secure_filename(file_data.filename)
-            # print(filename)
                 
         # Fetch the user from MongoDB based on the unique ID
-        employeeData = db.employeeData.find_one({'id': UUID(id)})
         
-        if employeeData:
+
+        employeeData =  db.employeeData.find_one({'id': UUID(id)})
+        # print(employeeData)
+        if "file_id" in employeeData:
+            file_id = employeeData['file_id']
+            # print(file_id)
+            if file_field in file_id:
+                #aadhar or pan
+                file_obj_id = file_id[file_field]
+                # print(file_obj_id)
+                #delete previous file to save new one
+                fs.delete(file_obj_id)
+
+        # try:
+        #     file_data = employeeData.find_one({'id':UUID(id)},{'_id':0,f'file_id.{file_field}':1})
+        #     print(file_data)
+        # except:
+        #     return make_response({"ERROR":f"No {file_field} document"}, 404)
+        
+        if employeeData:    
             # Save file to MongoDB using GridFS
             #with fs.new_file(filename=file_data, content_type=file_data.content_type) as grid_file:
-            grid_file= fs.put(file_data.stream, filename=filename, content_type=file_data.content_type, id=UUID(id)) 
-                #grid_file.write(file_data.stream.read())
+            got_file= fs.put(file_data.stream, filename=filename, content_type=file_data.content_type, id=UUID(id))
+            
+            #object to save in every employees db
+            # file_obj = {
+            #     file_field:got_file,
+            # }
+            
             # Associate the file with the user in the employeeData collection
-            db.employeeData.update_one({'id': UUID(id)}, {'$set': {'file_id':grid_file}})
-            db.employeeData.update_one({'id': UUID(id)}, {'$set': {'file_id': grid_file}})
+            db.employeeData.update_one({'id': UUID(id)}, {'$set': {f'file_id.{file_field}':got_file}})
+
             return make_response({"message":'Document Successfully Uploaded'}, 200)
         else:
             return make_response({"message":'User not found'}, 404)
     else:
         return make_response({"message":'File not provided'}, 400)
+    
+
+def send_document(id,file_type):
+    try:
+        fs = GridFS(db, collection='employeeData')
+        try:
+            file_data = employeeData.find_one({'id':UUID(id)},{'_id':0,f'file_id.{file_type}':1})
+        # print(file_data)
+        except:
+            return make_response({"ERROR":f"No {file_type} document"}, 404)
+        file_id = file_data['file_id'][file_type]
+        # print(file_id)
+        file_doc= fs.get(file_id)
+        filename = f"{file_type}.{file_doc.content_type.split("/")[1]}"
+        # print(filename)
+
+        # print(aadhar)
+        return send_file(file_doc, mimetype=file_doc.content_type, download_name=f"{filename}")
+    except Exception as e:
+        return make_response({"ERROR":"File not available"}, 500)
+
+
+
 
 
 

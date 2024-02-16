@@ -1,4 +1,4 @@
-from .dbConnection import get_employee_data,edit_employee_data,upload_documents
+from .dbConnection import get_employee_data,edit_employee_data,upload_documents, send_document, check_documents
 from flask import jsonify, Blueprint, request, make_response
 from ..loginAuth.tokenAuth import tokenAuth
 
@@ -93,11 +93,32 @@ def getEmployeeDocuments():
     3. uploading filepath in database with respective employee
     4. creating an endpoint to read the file
     '''
+    id = tokenAuth.token_decode(request.headers.get('Authorization'))['payload']['id']
     if request.method == 'POST':
-            # Extract file in form of json JSON 
-            #uid = request.json.get('id') #not used currently, will be used in SuperAdmin properties to CRUD
-            id = tokenAuth.token_decode(request.headers.get('Authorization'))['payload']['id']
-            # print(id)
-            file_data = request.files['file']
+        # Extract file in form of json JSON 
+        #uid = request.json.get('id') #not used currently, will be used in SuperAdmin properties to CRUD
+        # print(id)
+        # file_data = request.files['file']
+        return upload_documents(id, request.files)
 
-            return upload_documents(id, file_data)
+        # return upload_documents(id, file_data)
+    if request.method == 'GET':
+        return check_documents(id)
+
+@employeeDataView.route("/dashboard/employeedata/documents/aadhar", methods=['GET'])
+@auth.token_auth("/dashboard/employeedata/documents/aadhar")
+def downloadAadhar():
+    try:
+        id = tokenAuth.token_decode(request.headers.get('Authorization'))['payload']['id']
+        return send_document(id,'aadhar')
+    except Exception as e:
+        return make_response({"ERROR":str(e)}, 500)
+    
+@employeeDataView.route("/dashboard/employeedata/documents/pan", methods=['GET'])
+@auth.token_auth("/dashboard/employeedata/documents/pan")
+def downloadPan():
+    try:
+        id = tokenAuth.token_decode(request.headers.get('Authorization'))['payload']['id']
+        return send_document(id,'pan')
+    except Exception as e:
+        return make_response({"ERROR":str(e)}, 500)
