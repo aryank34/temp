@@ -37,34 +37,20 @@ def get_timesheets_for_employee(client, employee_id):
         members_collection = client.WorkBaseDB.Members
 
         # Use aggregation pipeline to match the employee ID and project the required fields
-        pipeline = [    {"$match": {"employeeID": ObjectId(employee_id)}},
-                        {"$lookup": {"from": "ManagerSheets",
-                                    "localField": "managerSheetID",
-                                    "foreignField": "_id",
-                                    "as": "managerSheet"}},
-                        {"$lookup": {"from": "TimesheetRecords",
-                                    "localField": "managerSheet._id",
-                                    "foreignField": "ManagerSheetInstances.ManagerSheetObjects",
-                                    "as": "manager"}},
-                        {"$project": {"ManagerID": "$manager.managerID",
-                                      "StartDate": "$manager.startDate",
-                                      "StartDate": "$manager.endDate",
-                                    "EmployeeSheetVersion":
-                                    "$employeeSheetInstances.version",
-                                    "EmployeeSheetStatus": "$status",
-                                    "WorkDayDetails": "$employeeSheetInstances.employeeSheetObject.workDay",
-                                    "Description":    "$employeeSheetInstances.employeeSheetObject.description"}}
+        pipeline = [    
+                    {"$match": 
+                    {"employeeID": ObjectId("65c3fecb2b6c3e4c32082962")}},
+                    {"$project": {"Manager":  "$managerID",
+                                  "StartDate":  "$startDate",
+                                  "EndDate":    "$endDate",
+                                #   "EmployeeSheetVersion":   "$employeeSheetInstances.version",
+                                  "Status":  "$status",
+                                  "Project":   "$employeeSheetInstances.employeeSheetObject.projectID",
+                                  "Task":  "$employeeSheetInstances.employeeSheetObject.taskID",
+                                  "WorkDayDetails":   "$employeeSheetInstances.employeeSheetObject.workDay",
+                                  "Description":  "$employeeSheetInstances.employeeSheetObject.description"
+                    }}
                     ]
-
-        # pipeline = [
-        #     {"$match": {"employeeID": ObjectId(employee_id)}},
-        #     {"$unwind": "$employeeSheetInstances"},
-        #     {"$lookup": {
-        #         "from": "ManagerSheets",
-        #         "localField": "managerSheetID",
-        #         "foreignField": "_id",
-        #         "as": "managerSheet"
-        #     }}, 
 
         # Aggregate the employee_sheets collection using the pipeline
         employee_sheets = employee_sheets_collection.aggregate(pipeline)
@@ -132,7 +118,6 @@ def get_WorkAccount(client, uid):
     It returns the account details if the user ID exists, or an error response if it does not exist or if an error occurs.
     """
     try:
-        # print(uid)
         # Access the 'employeeData' collection
         employeeData_collection = client.sample_employee.employeeData
         # Check if the user ID exists in the collection

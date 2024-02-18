@@ -33,7 +33,7 @@ class tokenAuth:
     def token_auth(self, endpoint):
         def inner1(func):
             @wraps(func)
-            def inner2(*args):
+            def inner2(*args, **kwargs):
                 Authorization = request.headers.get('Authorization')
                 if re.match("^Bearer *([^ ]+) *$", Authorization, flags=0):
                     # token = Authorization.split(" ")[1]
@@ -70,7 +70,7 @@ class tokenAuth:
                         allowed_roles = endpoint_access_role_ids['role_id']
                         # print(allowed_roles)
                         if role_id in allowed_roles:
-                            return func(*args)
+                            return func(*args, **kwargs)
                         else:
                             return make_response({"ERROR":"Invalid Role"}, 404)
                     else:

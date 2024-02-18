@@ -40,31 +40,31 @@ def get_timesheets_for_manager(client, manager_id, status=None):
 
         # Use aggregation pipeline to match the employee ID and project the required fields
         default_pipeline = [
-                    {"$match": {"managerID": ObjectId(manager_id)}},
-                    {"$unwind": "$managerSheetsInstances"},
-                    {"$lookup": {
-                        "from": "ManagerSheets",
-                        "localField": "managerSheetsInstances.managerSheetsObjects",
-                        "foreignField": "_id",
-                        "as": "managerSheets"}},
-                    {"$unwind": "$managerSheets"},
-                    {"$project": {"createdDate": "$managerSheetsInstances.createdDate",
-                                "projectID": "$managerSheets.projectID",
-                                "startDate": "$managerSheets.startDate",
-                                "endDate": "$managerSheets.endDate",
-                                "Status": "$managerSheets.status",
-                                "WorkDay": {
-                                    "$arrayToObject": {
-                                    "$map": {
-                                        "input": {"$objectToArray": "$managerSheets.workDay"},
-                                        "as": "day",
-                                        "in": {
-                                        "k": "$$day.k",
-                                        "v": "$$day.v.work"}}}},
-                                "Description": "$managerSheets.description",
-                                "Assigned To": "$managerSheets.assignGroupID"
-                                }}
-                    ]
+                            {"$match": {"managerID": ObjectId("65c408582b6c3e4c3208296d")}},
+                            {"$unwind": "$managerSheetsInstances"},
+                            {"$lookup": {
+                                "from": "ManagerSheets",
+                                "localField": "managerSheetsInstances.managerSheetsObjects",
+                                "foreignField": "_id",
+                                "as": "managerSheets"}},
+                            {"$unwind": "$managerSheets"},
+                            {"$project": {"createdDate": "$managerSheetsInstances.createdDate",
+                                        "Project": "$managerSheets.projectID",
+                                        "startDate": "$managerSheets.startDate",
+                                        "endDate": "$managerSheets.endDate",
+                                        "Status": "$managerSheets.status",
+                                        "WorkDay": {
+                                            "$arrayToObject": {
+                                            "$map": {
+                                                "input": {"$objectToArray": "$managerSheets.workDay"},
+                                                "as": "day",
+                                                "in": {
+                                                "k": "$$day.k",
+                                                "v": "$$day.v.work"}}}},
+                                        "Description": "$managerSheets.description",
+                                        "Assigned To": "$managerSheets.assignGroupID"
+                                        }}
+                            ]
         review_pipeline = [
                     {"$match": {"managerID": ObjectId("65c408582b6c3e4c3208296d")}},
                     {"$unwind": "$managerSheetsInstances"},
@@ -77,9 +77,9 @@ def get_timesheets_for_manager(client, manager_id, status=None):
                         "managerSheets.status": "Review"
                     }},
                     {"$unwind": "$managerSheets"},
-                    {"$project": {"employeeID": "$managerSheets.employeeID",
-                                "projectID": "$managerSheets.employeeSheetInstances.employeeSheetObject.projectID",
-                                "taskID": "$managerSheets.employeeSheetInstances.employeeSheetObject.taskID",
+                    {"$project": {"Employee": "$managerSheets.employeeID",
+                                "Project": "$managerSheets.employeeSheetInstances.employeeSheetObject.projectID",
+                                "Task": "$managerSheets.employeeSheetInstances.employeeSheetObject.taskID",
                                 "startDate": "$managerSheets.startDate",
                                 "endDate": "$managerSheets.endDate",
                                 "Status": "$managerSheets.status",
@@ -225,37 +225,35 @@ def fetch_timesheets(manager_uuid, status=None):
 
 def store_data(data,manager_id,client):
     # Convert string to ObjectId
-    # _id = ObjectId(data["_id"]["$oid"])
-    project_id = ObjectId(data["projectID"])
-    assign_group_id = ObjectId(data["Assigned To"])
+    projectID = ObjectId(data["projectID"])
+    assignGroupID = ObjectId(data["assignGroupID"])
     # Convert string to datetime
-    start_date = datetime.strptime(data['startDate'], "%Y-%m-%d %H:%M:%S")
-    end_date = datetime.strptime(data['endDate'], "%Y-%m-%d %H:%M:%S")
-    # print("Working Perfect--------------------")
+    startDate = datetime.strptime(data['startDate'], "%Y-%m-%d %H:%M:%S")
+    endDate = datetime.strptime(data['endDate'], "%Y-%m-%d %H:%M:%S")
 
     # Extract other fields
-    status = data["Status"]
-    description = data["Description"]
+    status = data["status"]
+    description = data["description"]
 
     # Create WorkDay object
-    work_day = {
-        "mon": WorkDay(data["WorkDay"]["mon"], 0, ""),
-        "tue": WorkDay(data["WorkDay"]["tue"], 0, ""),
-        "wed": WorkDay(data["WorkDay"]["wed"], 0, ""),
-        "thu": WorkDay(data["WorkDay"]["thu"], 0, ""),
-        "fri": WorkDay(data["WorkDay"]["fri"], 0, ""),
-        "sat": WorkDay(data["WorkDay"]["sat"], 0, ""),
-        "sun": WorkDay(data["WorkDay"]["sun"], 0, ""),
+    workDay = {
+        "mon": WorkDay(data["workDay"]["mon"], 0, ""),
+        "tue": WorkDay(data["workDay"]["tue"], 0, ""),
+        "wed": WorkDay(data["workDay"]["wed"], 0, ""),
+        "thu": WorkDay(data["workDay"]["thu"], 0, ""),
+        "fri": WorkDay(data["workDay"]["fri"], 0, ""),
+        "sat": WorkDay(data["workDay"]["sat"], 0, ""),
+        "sun": WorkDay(data["workDay"]["sun"], 0, ""),
     }
 
     # Create ManagerSheetsAssign object
-    manager_sheets_assign = ManagerSheetsAssign(project_id = project_id, start_date = start_date, end_date = end_date, work_day = work_day, description = description, status = status, assign_group_id = assign_group_id, sheet_update = False)
+    manager_sheets_assign = ManagerSheetsAssign(projectID = projectID, startDate = startDate, endDate = endDate, workDay = workDay, description = description, status = status, assignGroupID = assignGroupID, sheetUpdate = False)
     # Create a new timesheet object in managerSheets Collection and fetch the new timesheet ID
     new_timesheet = client.TimesheetDB.ManagerSheets.insert_one(manager_sheets_assign.to_dict())
     new_timesheet_id = new_timesheet.inserted_id
     # Create ManagerSheetsInstance object
-    created_date = datetime.now()
-    manager_sheets_instance = ManagerSheetsInstance(created_date=created_date, manager_sheets_objectID=new_timesheet_id)
+    lastUpdateDate = datetime.now()
+    manager_sheets_instance = ManagerSheetsInstance(lastUpdateDate=lastUpdateDate, managerSheetsObjectID=new_timesheet_id)
 
     # Update the managerSheetsObjects field in TimesheetRecords Collection, if managerID is not matched create new entry
     if (client.TimesheetDB.TimesheetRecords.find_one({"managerID": ObjectId(manager_id)})) is None:
@@ -292,14 +290,14 @@ def create_timesheet(manager_uuid, timesheet):
             if timesheet is not None:
 
                 # check if assignGroupID is valid
-                if timesheet['Assigned To'] is not None:
-                    timesheet['Assigned To'] = ObjectId(timesheet['Assigned To'])
-                    verify = verify_attribute(collection=client.TimesheetDB.AssignmentGroup, key="_id",attr_value=timesheet['Assigned To'])
+                if timesheet['assignGroupID'] is not None:
+                    timesheet['assignGroupID'] = ObjectId(timesheet['assignGroupID'])
+                    verify = verify_attribute(collection=client.TimesheetDB.AssignmentGroup, key="_id",attr_value=timesheet['assignGroupID'])
                     if not verify.status_code == 200:
                         # If the connection fails, return the error response
                         return verify
                 else:
-                    return make_response(jsonify({"error": "timesheet data is required"}), 400)
+                    return make_response(jsonify({"error": "timesheet \"assignGroupID\" data is required"}), 400)
 
                 # check if projectID is valid
                 if 'projectID' in timesheet:
@@ -309,7 +307,7 @@ def create_timesheet(manager_uuid, timesheet):
                         # If the connection fails, return the error response
                         return verify
                 else:
-                    return make_response(jsonify({"error": "timesheet data is required"}), 400)
+                    return make_response(jsonify({"error": "timesheet \"projectID\" data is required"}), 400)
                     
                 # check if startDate is greater than endDate format:2024-02-05 18:30:00
                 if 'startDate' in timesheet and 'endDate' in timesheet:
@@ -318,7 +316,7 @@ def create_timesheet(manager_uuid, timesheet):
                     if start >= end:
                         return make_response(jsonify({"error": "startDate cannot be greater than endDate"}), 400)
                 else:
-                    return make_response(jsonify({"error": "timesheet data is required"}), 400)
+                    return make_response(jsonify({"error": "timesheet duration data is required"}), 400)
 
             else:
                 return make_response(jsonify({"error": "timesheet data is required"}), 400)

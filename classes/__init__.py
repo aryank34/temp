@@ -23,6 +23,8 @@ def create_app():
     from .services.timesheet.routes import timesheet_bp
     from .services.timesheet.manager.routes import manager_timesheet_bp
     from .services.timesheet.employee.routes import employee_timesheet_bp
+    #salespipeline
+    from .services.salesPipeline.salesPipelineView import salesPipelineView
 
 
 
@@ -32,5 +34,6 @@ def create_app():
     app.register_blueprint(timesheet_bp)
     app.register_blueprint(manager_timesheet_bp)
     app.register_blueprint(employee_timesheet_bp)
+    app.register_blueprint(salesPipelineView)
 
     return app

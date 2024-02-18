@@ -1,4 +1,4 @@
-from flask import make_response,jsonify, send_file, Response
+from flask import make_response,jsonify, send_file
 from pymongo import MongoClient
 
 #to get Object Id from mongodb
