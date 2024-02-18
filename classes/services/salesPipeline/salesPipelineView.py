@@ -1,21 +1,28 @@
 from flask import Blueprint, request, make_response
 from ..loginAuth.tokenAuth import tokenAuth
-from .dbConnection import addSalesRecord, getAllSalesRecords, getDropDownData, editSalesRecord, deleteSalesRecord, getAllCalculations
+from .dbConnection import addSalesRecord, getAllSalesRecords, getDropDownData, editSalesRecord, deleteSalesRecord, getAllYears 
 
 auth = tokenAuth()
 
 salesPipelineView = Blueprint('salesPipelineView',__name__)
 
-@salesPipelineView.route("/dashboard/salespipeline/<int:year>", methods=['GET'])
-@auth.token_auth("/dashboard/salespipeline/2024")
-@auth.token_auth("/dashboard/salespipeline/2023")
-@auth.token_auth("/dashboard/salespipeline/2022")
+@salesPipelineView.route("/dashboard/salespipeline", methods=['GET'])
+@auth.token_auth("/dashboard/salespipeline")
+def getYears():
+    if request.method == 'GET':
+        return getAllYears()
+
+@salesPipelineView.route("/dashboard/salespipeline/<year>", methods=['GET'])
+@auth.token_auth("/dashboard/salespipeline/<year>")
+# @auth.token_auth("/dashboard/salespipeline/2024")
+# @auth.token_auth("/dashboard/salespipeline/2023")
+# @auth.token_auth("/dashboard/salespipeline/2022")
 def getSalesPipeline(year):
     if request.method == 'GET':
         #send all the documents present in db accoring to current year
         # print(year)
         #calculations included in result
-        result = getAllSalesRecords(year)
+        result = getAllSalesRecords(int(year))
         
         return result
 

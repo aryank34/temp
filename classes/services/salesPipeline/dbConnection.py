@@ -9,7 +9,8 @@ import os
 # from bson.binary import UuidRepresentation
 # from uuid import UUID
 
-
+#to get current year
+import datetime
 
 
 load_dotenv(find_dotenv())
@@ -19,7 +20,26 @@ client = MongoClient(connection_string, UuidRepresentation="standard")
 salespipeline = client.SalesPipeline
 dropDownDB = salespipeline.dropDownData
 
+def getAllYears():
+    try:
+        result = list(salespipeline.list_collection_names())
+        # print(result)
+        years = []
+        for c in result:
+            if c.startswith("Year") and c.endswith("Data"):
+                c = c.replace("Year","")
+                c = c.replace("Data","")
+                years.append(int(c))
+        # print(years)
+        current_year = datetime.date.today().year
+        # print(type(current_year))
 
+        years.remove(current_year)
+        # print(years)
+        
+        return make_response({"current":current_year,"archieve":years}, 200)
+    except Exception as e:
+        return make_response({"ERROR":str(e)}, 500)
 
 def getDropDownData():
     try:
@@ -54,12 +74,15 @@ def addSalesRecord(data):
 
 def getAllSalesRecords(year):
     try:
+        # print(type(year))
         if year == 2024:
             data = salespipeline.Year2024Data.find({},{'_id':0})
         elif year == 2023:
             data = salespipeline.Year2023Data.find({},{'_id':0})
         elif year == 2022:
             data = salespipeline.Year2022Data.find({},{'_id':0})
+        else:
+            return make_response({"ERROR":"No data for the year"})
         # print(list(data))  
         data_obj={}
         for sale in data:
