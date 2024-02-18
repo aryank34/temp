@@ -162,10 +162,10 @@ def getAllCalculations(year):
         # result['Current_Year_Target_Goal'] = f'{result['Current_Year_Target_Goal']:,}'
         # result['Goal_Achievement'] = f'{result['Goal_Achievement']:,}'
 
-        result['Current_Year_Total'] = f'{result['Current_Year_Total']:,}'
-        result['Prior_Year_Total'] = f'{result['Prior_Year_Total']:,}'
-        result['Current_Year_Target_Goal'] = f'{result['Current_Year_Target_Goal']:,}'
-        result['Goal_Achievement'] = f'{result['Goal_Achievement']:,}'
+        result['Current_Year_Total'] = f"{result['Current_Year_Total']:,}"
+        result['Prior_Year_Total'] = f"{result['Prior_Year_Total']:,}"
+        result['Current_Year_Target_Goal'] = f"{result['Current_Year_Target_Goal']:,}"
+        result['Goal_Achievement'] = f"{result['Goal_Achievement']:,}"
         
         # print(result)
         return (result)
