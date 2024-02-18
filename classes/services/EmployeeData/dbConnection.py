@@ -46,6 +46,7 @@ def checkUserValidity(id):
         #get the user by matching the uuid from db
         # user = userProvisioningData.find_one({'id':UUID(uid)},{'_id':0,'Name':1,'id':1})
         user = employeeData.find_one({'id':UUID(id)},{'_id':0,'FirstName':1,'LastName':1,'id':1,"Role":1})
+
         user['id'] = str(user['id']) #uuid cant be sent directly, convert to string first
         # print(user)
 
@@ -149,15 +150,16 @@ def check_documents(id):
     # try:
         # result = employeeData.find_one({"id":UUID(id)},{"_id":0,"file_id":1})
     emp = employeeData.find_one({"id":UUID(id)})
-    obj = {'aadhar':False,'pan':False}
+    # obj = {'aadhar':False,'pan':False}
+    # obj={}
     if 'file_id' in emp:
     # print(result)
         result = emp['file_id']
-        # print(result)
-        if 'aadhar' in result:
-            obj['aadhar'] = True
-        if 'pan' in result:
-            obj['pan'] = True
+        obj = {key: True for key in result.keys()}
+        # if 'aadhar' in result:
+        #     obj['aadhar'] = True
+        # if 'pan' in result:
+        #     obj['pan'] = True
         # print(obj)
         return make_response({"Message":obj}, 200)
     else:
@@ -169,15 +171,16 @@ def upload_documents(id, file_response):
     # fs = GridFS(db)  
     fs = GridFS(db, collection='employeeData')
     # print(list(file_response))
-    file_field = ""
-    # if list[file_response][0] == 'aadhar':
-    if 'aadhar' in file_response:
-        file_field = 'aadhar'
-    # elif list[file_response][0] == 'pan':
-    elif 'pan' in file_response:
-        file_field = 'pan'
+    # file_field = ""
+    # # if list[file_response][0] == 'aadhar':
+    # if 'aadhar' in file_response:
+    #     file_field = 'aadhar'
+    # # elif list[file_response][0] == 'pan':
+    # elif 'pan' in file_response:
+    #     file_field = 'pan'
     # print(file_field)
-        
+    file_field = list(file_response)[0]
+    # print(file_field)
     file_data = file_response[file_field]
     # print(file_data)
 

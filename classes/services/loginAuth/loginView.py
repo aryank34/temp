@@ -1,5 +1,6 @@
 from flask import jsonify, Blueprint, request, make_response
 from ..EmployeeData.dbConnection import checkUserValidity
+from flask_jwt_extended import jwt_required, get_jwt
 
 loginView = Blueprint('loginView',__name__)
 
@@ -15,4 +16,5 @@ def checkUser():
     except Exception as e:
         error_message = str(e)
         return make_response({'error in loginView': error_message}, 500)
+
     

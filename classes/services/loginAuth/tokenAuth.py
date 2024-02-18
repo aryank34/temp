@@ -51,8 +51,7 @@ class tokenAuth:
                     except jwt.ExpiredSignatureError:
                         return make_response({"ERROR":"Token Expired"}, 401)
                     except jwt.DecodeError:
-                        return make_response({"ERROR":"Wrong Token"}, 401)
-
+                        return make_response({"ERROR":"Wrong Token"}, 401)                    
 
                     #extract role id from token - gives an array
                     role_id = jwt_decoded['payload']['Role']['role_id'][0] #for now i have taken the first element

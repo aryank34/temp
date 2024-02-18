@@ -105,20 +105,26 @@ def getEmployeeDocuments():
     if request.method == 'GET':
         return check_documents(id)
 
-@employeeDataView.route("/dashboard/employeedata/documents/aadhar", methods=['GET'])
-@auth.token_auth("/dashboard/employeedata/documents/aadhar")
-def downloadAadhar():
+# @employeeDataView.route("/dashboard/employeedata/documents/aadhar", methods=['GET'])
+@employeeDataView.route("/dashboard/employeedata/documents/<any>", methods=['GET'])
+@auth.token_auth("/dashboard/employeedata/documents/<any>")
+# @auth.token_auth("/dashboard/employeedata/documents/aadhar")
+# @auth.token_auth("/dashboard/employeedata/documents/pan")
+
+def downloadDocument(any):
     try:
+        # print(any)
         id = tokenAuth.token_decode(request.headers.get('Authorization'))['payload']['id']
-        return send_document(id,'aadhar')
+        return send_document(id,any)
+        # return send_document(id,'aadhar')
     except Exception as e:
         return make_response({"ERROR":str(e)}, 500)
     
-@employeeDataView.route("/dashboard/employeedata/documents/pan", methods=['GET'])
-@auth.token_auth("/dashboard/employeedata/documents/pan")
-def downloadPan():
-    try:
-        id = tokenAuth.token_decode(request.headers.get('Authorization'))['payload']['id']
-        return send_document(id,'pan')
-    except Exception as e:
-        return make_response({"ERROR":str(e)}, 500)
+# @employeeDataView.route("/dashboard/employeedata/documents/pan", methods=['GET'])
+# @auth.token_auth("/dashboard/employeedata/documents/pan")
+# def downloadPan():
+#     try:
+#         id = tokenAuth.token_decode(request.headers.get('Authorization'))['payload']['id']
+#         return send_document(id,'pan')
+#     except Exception as e:
+#         return make_response({"ERROR":str(e)}, 500)
