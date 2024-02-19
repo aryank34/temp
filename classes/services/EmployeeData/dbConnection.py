@@ -86,7 +86,7 @@ def replace_null(value, placeholder='NA'):
 #get data from mongodb
 def get_employee_data(id):
     try:
-        employees = employeeData.find({'id':UUID(id)},{'_id':0,'id':1,'emp_id':1,'FirstName':1,'LastName':1,'mail':1,'team':1,'Designation':1,'ContactNo':1,'Address':1,'ReportingTo':1,'status':1,'Date_of_Joining':1,'Emergency_Contact_Name':1,'Emergency_Contact_Number':1,'Emergency_Relation':1})
+        employees = employeeData.find({'id':UUID(id)},{'_id':0,'id':1,'emp_id':1,'FirstName':1,'LastName':1,'mail':1,'team':1,'Designation':1,'ContactNo':1,'Address':1,'ReportingTo':1,'status':1,'Date_of_Joining':1,'Emergency_Contact_Name':1,'Emergency_Contact_Number':1,'Emergency_Relation':1,'Certificate_Name':1})
         all_employee_data = [
             {
                 # '_id': str(ObjectId(emp['_id'])),
@@ -106,7 +106,8 @@ def get_employee_data(id):
                 'Emergency_Contact_Name': replace_null(emp.get('Emergency_Contact_Name')),
                 'Emergency_Contact_Number': replace_null(emp.get('Emergency_Contact_Number')),
                 'Emergency_Relation': replace_null(emp.get('Emergency_Relation')),
-                'emp_id': replace_null(emp.get('emp_id'))
+                'emp_id': replace_null(emp.get('emp_id')),
+                'Certificate_Name':replace_null(emp.get('Certificate_Name'))
             }
             for emp in employees
         
