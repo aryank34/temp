@@ -1,7 +1,7 @@
 from flask import make_response
 from pymongo import MongoClient
 #to get Object Id from mongodb
-# from bson.objectid import ObjectId
+from bson.objectid import ObjectId
 #load and find the env file
 from dotenv import load_dotenv, find_dotenv
 import os
@@ -11,6 +11,8 @@ import os
 
 #to get current year
 import datetime
+
+import json
 
 
 load_dotenv(find_dotenv())
@@ -58,15 +60,16 @@ def addSalesRecord(data):
             updateDropDown(data)
 
             #check SaleNumber
-            last_sale = salespipeline.Year2024Data.find_one({},{"_id":0,"SaleNumber":1}, sort=[("SaleNumber", -1)])
-            # print(last_sale)
-            data['SaleNumber'] = last_sale['SaleNumber']+1
+            # last_sale = salespipeline.Year2024Data.find_one({},{"_id":0,"SaleNumber":1}, sort=[("SaleNumber", -1)])
+            # # print(last_sale)
+            # data['SaleNumber'] = last_sale['SaleNumber']+1
             # print(data)
 
             salespipeline.Year2024Data.insert_one(data)
-            
+            last_sale_id = str(list(salespipeline.Year2024Data.find({},{'_id':1}).limit(1).sort([("$natural", -1)]))[0]['_id'])
+            # print(str(last_sale_id))
 
-            return make_response({"message":"Sales Record Added"}, 200) 
+            return make_response({"message":"Sales Record Added","_id":last_sale_id}, 200) 
         else:
             return make_response({"ERROR":"Error in sending json"}, 500)
     except Exception as e:
@@ -76,17 +79,21 @@ def getAllSalesRecords(year):
     try:
         # print(type(year))
         if year == 2024:
-            data = salespipeline.Year2024Data.find({},{'_id':0})
+            data = list(salespipeline.Year2024Data.find())
+            # print(data)
         elif year == 2023:
-            data = salespipeline.Year2023Data.find({},{'_id':0})
+            data = salespipeline.Year2023Data.find()
         elif year == 2022:
-            data = salespipeline.Year2022Data.find({},{'_id':0})
+            data = salespipeline.Year2022Data.find()
         else:
             return make_response({"ERROR":"No data for the year"})
         # print(list(data))  
         data_obj={}
-        for sale in data:
-            data_obj[sale['SaleNumber']] = sale
+        for index,sale in enumerate(data, start=1):
+            data_obj[index] = sale
+            data_obj[index]['_id'] = str(data_obj[index]['_id'])
+        # print(data_obj)
+
 
         calculations = getAllCalculations(year)
 
@@ -101,12 +108,18 @@ def editSalesRecord(data):
             data = data['2024']
             # print(data)
             updateDropDown(data)
-            SaleNumber = int(data['SaleNumber'])
+            # SaleNumber = int(data['SaleNumber'])
+            try:
+                _id = ObjectId(data['_id'])
+            except:
+                return make_response({"ERROR":"Wrong _id"}, 404)
+            data.pop("_id",None)
+            # print(data)
             data_obj = {
                 "$set":data
             }
-            if(salespipeline.Year2024Data.count_documents({"SaleNumber":SaleNumber},limit = 1) == 1):
-                salespipeline.Year2024Data.update_one({"SaleNumber":SaleNumber}, data_obj) 
+            if(salespipeline.Year2024Data.count_documents({"_id":_id},limit = 1) == 1):
+                salespipeline.Year2024Data.update_one({"_id":_id}, data_obj) 
                 return make_response({"message":"Data Edited"}, 201)
             else:
                 return make_response({"message":"No record Found"},202)
@@ -118,9 +131,12 @@ def deleteSalesRecord(data):
     try:
         if '2024' in data:
             data = data['2024']
-            SaleNumber = int(data['SaleNumber'])
+            try:
+                _id = ObjectId(data['_id'])
+            except:
+                return make_response({"ERROR":"Wrong _id"}, 404)
             # print(SaleNumber)
-            result = salespipeline.Year2024Data.delete_one({'SaleNumber':SaleNumber})
+            result = salespipeline.Year2024Data.delete_one({'_id':_id})
             # print(result)
             if result.deleted_count > 0:
                 return make_response({"message":"Sale Record Deleted"}, 200)

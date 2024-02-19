@@ -1,5 +1,5 @@
 # Import necessary modules
-from datetime import datetime
+from datetime import datetime, timedelta
 from uuid import UUID
 from bson import ObjectId
 from bson.binary import UuidRepresentation
@@ -10,6 +10,7 @@ import os
 from dotenv import load_dotenv, find_dotenv
 import json
 from ...models import TimesheetRecord,ManagerSheetsAssign,ManagerSheetsInstance,WorkDay
+from ....connectors.dbConnector import dbConnectCheck, get_WorkAccount, verify_attribute
 
 # Create a new Flask web server instance
 app = Flask(__name__)
@@ -40,7 +41,7 @@ def get_timesheets_for_manager(client, manager_id, status=None):
 
         # Use aggregation pipeline to match the employee ID and project the required fields
         default_pipeline = [
-                            {"$match": {"managerID": ObjectId("65c408582b6c3e4c3208296d")}},
+                            {"$match": {"managerID": ObjectId(manager_id)}},
                             {"$unwind": "$managerSheetsInstances"},
                             {"$lookup": {
                                 "from": "ManagerSheets",
@@ -48,10 +49,12 @@ def get_timesheets_for_manager(client, manager_id, status=None):
                                 "foreignField": "_id",
                                 "as": "managerSheets"}},
                             {"$unwind": "$managerSheets"},
-                            {"$project": {"createdDate": "$managerSheetsInstances.createdDate",
+                            {"$project": {"managerSheetID": "$managerSheets._id",
+                                        "Last Update Date": "$managerSheetsInstances.lastUpdateDate",
+                                        "Sheet Version": "$managerSheetsInstances.version",
                                         "Project": "$managerSheets.projectID",
-                                        "startDate": "$managerSheets.startDate",
-                                        "endDate": "$managerSheets.endDate",
+                                        "Start Date": "$managerSheets.startDate",
+                                        "End Date": "$managerSheets.endDate",
                                         "Status": "$managerSheets.status",
                                         "WorkDay": {
                                             "$arrayToObject": {
@@ -66,7 +69,7 @@ def get_timesheets_for_manager(client, manager_id, status=None):
                                         }}
                             ]
         review_pipeline = [
-                    {"$match": {"managerID": ObjectId("65c408582b6c3e4c3208296d")}},
+                    {"$match": {"managerID": ObjectId(manager_id)}},
                     {"$unwind": "$managerSheetsInstances"},
                     {"$lookup": {
                         "from": "ManagerSheets",
@@ -87,9 +90,11 @@ def get_timesheets_for_manager(client, manager_id, status=None):
                                 "Description": "$managerSheets.employeeSheetInstances.employeeSheetObject.description"
                                 }}
                     ]
-        # return working response
+        
 
-        if status is "Draft" or status is "Assign":
+
+        # Check the status of the timesheets
+        if status == "Draft" or status == "Assign":
             timesheet = timesheet_collection.aggregate(default_pipeline)
         elif status is "Review":
             # return make_response(jsonify({"message": "Working in review"}), 200)
@@ -100,12 +105,12 @@ def get_timesheets_for_manager(client, manager_id, status=None):
             return make_response(jsonify({"message": "No Timesheets here yet"}), 200)
         
         filtered_timesheets = []
-        if status is "Draft":
+        if status == "Draft":
             query = ["Draft"]
         # is statuses of timesheet is manage, select Active, Upcoming, and review
-        elif status is "Assign":
+        elif status == "Assign":
             query = ["Active", "Upcoming"]
-        elif status is "Review":
+        elif status == "Review":
             query = ["Review"]
 
         for ts in timesheet:
@@ -119,74 +124,11 @@ def get_timesheets_for_manager(client, manager_id, status=None):
 
         # Convert the manager_sheets cursor object to a JSON object
         timesheets_json = json.dumps(filtered_timesheets, default=str)
-        
-        # Return the JSON response
-        return make_response(timesheets_json, 200)
-    
-    except Exception as e:
-        # If an error occurs, return the error response
-        return make_response(jsonify({"error": str(e)}), 500)
+        # Parse the JSON string into a Python data structure
+        timesheets_data = json.loads(timesheets_json)
 
-def dbConnectCheck():
-    """
-    This function creates a new MongoDB client and checks the connection to the MongoDB server.
-    It returns the MongoClient instance if the connection is successful, or an error response if the connection fails.
-    """
-    try:
-        # Create a new MongoDB client
-        uri = mongo_host
-        client = MongoClient(uri, server_api=ServerApi('1'), UuidRepresentation="standard")
-
-        # Return the client if the connection is successful
-        return client
-
-    except Exception as e:
-        # Return an error response if the connection fails
-        return make_response(jsonify({"error": str(e)}), 500)
-
-def verify_attribute(collection, key, attr_value):
-    """
-    This function checks if an account ID exists in the 'Members' collection of the database.
-    It takes a MongoClient instance and an account ID as input.
-    It returns True if the account ID exists, or an error response if it does not exist or if an error occurs.
-    """
-    try:
-        # # Access the 'Members' collection
-        # user_collection = collection.WorkBaseDB.Members
-        # Check if the account ID exists in the collection
-        account_exists = collection.find_one({key: attr_value})
-
-        # If the account ID does not exist, return an error response
-        if not account_exists:
-            return make_response(jsonify({"error": "Account ID does not exist"}), 404)
-        return make_response(jsonify({"message": "Account ID exists"}), 200)
-
-    except Exception as e:
-        # If an error occurs, return the error response
-        return make_response(jsonify({"error": str(e)}), 500)
-
-def get_WorkAccount(client, uid):
-    """
-    This function retrieves the account details of a user from the database.
-    It takes a MongoClient instance and a user ID as input.
-    It returns the account details if the user ID exists, or an error response if it does not exist or if an error occurs.
-    """
-    try:
-        # Access the 'employeeData' collection
-        employeeData_collection = client.sample_employee.employeeData
-        # Check if the user ID exists in the collection
-        user_accountID = employeeData_collection.find_one({"id": UUID(uid)}, {"_id": 1})
-        # return make_response(jsonify({"message": "working"}), 200)
-        # Access the 'Members' collection
-        members_collection = client.WorkBaseDB.Members
-        user_account = members_collection.find_one({"employeeDataID": ObjectId(user_accountID["_id"])}, {"_id": 1})
-
-        # If the user ID does not exist, return an error response
-        if not user_account:
-            return make_response(jsonify({"error": "User ID does not exist"}), 404)
-        
-        # If the user ID exists, return the account details
-        return make_response(jsonify({"_id": str(user_account["_id"])}), 200)
+        # Return the JSON response as managerSheets, preserve the output format
+        return make_response(jsonify({"managerSheets": timesheets_data}), 200)
 
     except Exception as e:
         # If an error occurs, return the error response
@@ -224,47 +166,64 @@ def fetch_timesheets(manager_uuid, status=None):
         return make_response(jsonify({"error": str(e)}), 500)
 
 def store_data(data,manager_id,client):
-    # Convert string to ObjectId
-    projectID = ObjectId(data["projectID"])
-    assignGroupID = ObjectId(data["assignGroupID"])
-    # Convert string to datetime
-    startDate = datetime.strptime(data['startDate'], "%Y-%m-%d %H:%M:%S")
-    endDate = datetime.strptime(data['endDate'], "%Y-%m-%d %H:%M:%S")
+    try: 
+        # Convert string to ObjectId
+        projectID = ObjectId(data["projectID"])
+        assignGroupID = ObjectId(data["assignGroupID"])
+        # Convert string to datetime
+        startDate = datetime.strptime(data['startDate'], "%Y-%m-%d %H:%M:%S")
+        endDate = datetime.strptime(data['endDate'], "%Y-%m-%d %H:%M:%S")
 
-    # Extract other fields
-    status = data["status"]
-    description = data["description"]
+        # Extract other fields
+        action = data["action"]
+        # if action is not "Draft" or "Save", throw error with message: "Illegal Action for timesheet"
+        if action not in ["Draft", "Save"]:
+            return make_response(jsonify({"error": "Illegal Action for timesheet"}), 400)
+        status=""
+        if action == "Draft":
+            status = "Draft"
+        elif action == "Save":
+            currentDate = datetime.now()
+            if (startDate-currentDate<=timedelta(1)):
+                status = "Active"
+            else:
+                status = "Upcoming"
+        
+        description = data["description"]
 
-    # Create WorkDay object
-    workDay = {
-        "mon": WorkDay(data["workDay"]["mon"], 0, ""),
-        "tue": WorkDay(data["workDay"]["tue"], 0, ""),
-        "wed": WorkDay(data["workDay"]["wed"], 0, ""),
-        "thu": WorkDay(data["workDay"]["thu"], 0, ""),
-        "fri": WorkDay(data["workDay"]["fri"], 0, ""),
-        "sat": WorkDay(data["workDay"]["sat"], 0, ""),
-        "sun": WorkDay(data["workDay"]["sun"], 0, ""),
-    }
+        # Create WorkDay object
+        workDay = {
+            "mon": WorkDay(data["workDay"]["mon"]),
+            "tue": WorkDay(data["workDay"]["tue"]),
+            "wed": WorkDay(data["workDay"]["wed"]),
+            "thu": WorkDay(data["workDay"]["thu"]),
+            "fri": WorkDay(data["workDay"]["fri"]),
+            "sat": WorkDay(data["workDay"]["sat"]),
+            "sun": WorkDay(data["workDay"]["sun"]),
+        }
 
-    # Create ManagerSheetsAssign object
-    manager_sheets_assign = ManagerSheetsAssign(projectID = projectID, startDate = startDate, endDate = endDate, workDay = workDay, description = description, status = status, assignGroupID = assignGroupID, sheetUpdate = False)
-    # Create a new timesheet object in managerSheets Collection and fetch the new timesheet ID
-    new_timesheet = client.TimesheetDB.ManagerSheets.insert_one(manager_sheets_assign.to_dict())
-    new_timesheet_id = new_timesheet.inserted_id
-    # Create ManagerSheetsInstance object
-    lastUpdateDate = datetime.now()
-    manager_sheets_instance = ManagerSheetsInstance(lastUpdateDate=lastUpdateDate, managerSheetsObjectID=new_timesheet_id)
+        # Create ManagerSheetsAssign object
+        manager_sheets_assign = ManagerSheetsAssign(projectID = projectID, startDate = startDate, endDate = endDate, workDay = workDay, description = description, status = status, assignGroupID = assignGroupID)
+        # Create a new timesheet object in managerSheets Collection and fetch the new timesheet ID
+        new_timesheet = client.TimesheetDB.ManagerSheets.insert_one(manager_sheets_assign.to_dict())
+        new_timesheet_id = new_timesheet.inserted_id
+        # Create ManagerSheetsInstance object
+        lastUpdateDate = datetime.now()
+        manager_sheets_instance = ManagerSheetsInstance(lastUpdateDate=lastUpdateDate, managerSheetsObjectID=new_timesheet_id)
 
-    # Update the managerSheetsObjects field in TimesheetRecords Collection, if managerID is not matched create new entry
-    if (client.TimesheetDB.TimesheetRecords.find_one({"managerID": ObjectId(manager_id)})) is None:
-        client.TimesheetDB.TimesheetRecords.insert_one({"managerID": ObjectId(manager_id), 
-                                                        "managerSheetsInstances": [manager_sheets_instance.to_dict()]})
-    else:
-        client.TimesheetDB.TimesheetRecords.update_one({"managerID": ObjectId(manager_id)},
-                                                       {"$push": {"managerSheetsInstances": manager_sheets_instance.to_dict()}}
-    )
+        # Update the managerSheetsObjects field in TimesheetRecords Collection, if managerID is not matched create new entry
+        if (client.TimesheetDB.TimesheetRecords.find_one({"managerID": ObjectId(manager_id)})) is None:
+            client.TimesheetDB.TimesheetRecords.insert_one({"managerID": ObjectId(manager_id), 
+                                                            "managerSheetsInstances": [manager_sheets_instance.to_dict()]})
+        else:
+            client.TimesheetDB.TimesheetRecords.update_one({"managerID": ObjectId(manager_id)},
+                                                        {"$push": {"managerSheetsInstances": manager_sheets_instance.to_dict()}}
+        )
 
-    return new_timesheet_id
+        return make_response(jsonify({"message": "Timesheet Creation Successful"}), 200)
+    except Exception as e:
+        # If an error occurs, return the error response
+        return make_response(jsonify({"error": str(e)}), 500)
 
 def create_timesheet(manager_uuid, timesheet):
     """
@@ -313,8 +272,9 @@ def create_timesheet(manager_uuid, timesheet):
                 if 'startDate' in timesheet and 'endDate' in timesheet:
                     start = datetime.strptime(timesheet['startDate'], "%Y-%m-%d %H:%M:%S")
                     end = datetime.strptime(timesheet['endDate'], "%Y-%m-%d %H:%M:%S")
-                    if start >= end:
-                        return make_response(jsonify({"error": "startDate cannot be greater than endDate"}), 400)
+                    curr = datetime.now()
+                    if (start >= end) or (start<=curr) or (end<=curr):
+                        return make_response(jsonify({"error": "timesheet duration data is incorrect"}), 400)
                 else:
                     return make_response(jsonify({"error": "timesheet duration data is required"}), 400)
 
@@ -324,9 +284,12 @@ def create_timesheet(manager_uuid, timesheet):
 
             
             newmanagerSheet=store_data(timesheet,manager_id,client)
-
+            
+            if not newmanagerSheet.status_code == 200:
+                # If the connection fails, return the error response
+                return newmanagerSheet
             # Return the new timesheet as a JSON response
-            return make_response(jsonify({"message": "Timesheet created successfully", "timesheetID": str(newmanagerSheet)}), 200)
+            return make_response(jsonify({"message": str(newmanagerSheet.json['message'])}), 200)    
 
         else:
             # If the connection fails, return the error response

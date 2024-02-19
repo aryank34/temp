@@ -61,15 +61,6 @@ def create_new_timesheet():
         # Access the 'timesheet' field, which is a nested JSON object
         timesheet = payload.get('timesheet')
 
-        # # Now you can access the fields of the timesheet like this:
-        # project_id = timesheet.get('projectID')
-        # start_date = timesheet.get('startDate')
-        # end_date = timesheet.get('endDate')
-        # work_day = timesheet.get('workDay')
-        # description = timesheet.get('description')
-        # status = timesheet.get('status')
-        # assign_group_id = timesheet.get('assignGroupID')
-
         # Call the create_timesheet function from the utils module
         create_timesheet_response = create_timesheet(uuid, timesheet)
 
