@@ -45,7 +45,8 @@ def getAllYears():
 
 def getDropDownData():
     try:
-        result = dropDownDB.find({},{'_id':0})[0]
+        current_year = datetime.date.today().year
+        result = dropDownDB.find({'Year':current_year},{'_id':0})[0]
         # print(result)
         return make_response({"message":result}, 200)
     except Exception as e:
@@ -57,19 +58,18 @@ def addSalesRecord(data):
         if '2024' in data:
             data = data['2024']
             # print(data)
-            updateDropDown(data)
+            
 
-            #check SaleNumber
-            # last_sale = salespipeline.Year2024Data.find_one({},{"_id":0,"SaleNumber":1}, sort=[("SaleNumber", -1)])
-            # # print(last_sale)
-            # data['SaleNumber'] = last_sale['SaleNumber']+1
-            # print(data)
-
+            count = salespipeline.Year2024Data.count_documents({})
+            # print(count)
             salespipeline.Year2024Data.insert_one(data)
-            last_sale_id = str(list(salespipeline.Year2024Data.find({},{'_id':1}).limit(1).sort([("$natural", -1)]))[0]['_id'])
-            # print(str(last_sale_id))
 
-            return make_response({"message":"Sales Record Added","_id":last_sale_id}, 200) 
+            
+            if count+1 == salespipeline.Year2024Data.count_documents({}):
+                updateDropDown(data)
+                return make_response({"message":"Sales Record Added"}, 200) 
+            else:
+                return make_response({"ERROR":"Sale Record Not Added"}, 500)
         else:
             return make_response({"ERROR":"Error in sending json"}, 500)
     except Exception as e:
@@ -107,6 +107,7 @@ def editSalesRecord(data):
         if '2024' in data:
             data = data['2024']
             # print(data)
+            editDropDown(data)
             updateDropDown(data)
             # SaleNumber = int(data['SaleNumber'])
             try:
@@ -136,6 +137,23 @@ def deleteSalesRecord(data):
             except:
                 return make_response({"ERROR":"Wrong _id"}, 404)
             # print(SaleNumber)
+
+            #delete from dropdown - Customers only
+            #data got from db
+            dbData = list(salespipeline.Year2024Data.find({'_id':ObjectId(_id)},{'_id':0}))[0]
+            # print(dbData)
+            dbCustomer = dbData['Customer']
+
+            #get data of dropdown
+            result = dropDownDB.find_one({},{'_id':0})
+
+            # if Customer != dbCustomer and Customer not in result['Customers']:
+                #check whether any other record has that Customer or not
+            freq_map_cust = getFrequencies('Customer')
+            if freq_map_cust[dbCustomer] == 1:
+                dropDownDB.update_one({},{"$pull":{'Customers':dbCustomer}})
+                
+
             result = salespipeline.Year2024Data.delete_one({'_id':_id})
             # print(result)
             if result.deleted_count > 0:
@@ -147,15 +165,27 @@ def deleteSalesRecord(data):
 
 
 def updateDropDown(data):
-    result = dropDownDB.find({},{'_id':0})[0]
+    # print(data)
+    result = dropDownDB.find_one({},{'_id':0})
     # print(result)
+    current_year = datetime.date.today().year
+    Year = result['Year']
+    # print(Year)
+    if Year != current_year:
+        new_obj = {
+            "$set":{
+                'Year':current_year
+            }
+        }
+        dropDownDB.update_one({},new_obj)
+    
     Customer = data['Customer']
     Channel = data['Channel']
     Reseller = data['Reseller']
     EC_PointOfContact = data['EC_PointOfContact']
     Stage = data['Stage']
     ChancesOfWinning = data['ChancesOfWinning']
-    WonLost = data['Won/Lost']
+    WonLost = data['WonLost']
     # print(Customer,Channel, Reseller, EC_PointOfContact, Stage, ChancesOfWinning, WonLost)
     # print(result['Customers'])
 
@@ -171,8 +201,45 @@ def updateDropDown(data):
         dropDownDB.update_one({},{"$push":{'Stage':Stage}})
     if ChancesOfWinning not in result['ChancesOfWinning']:
         dropDownDB.update_one({},{"$push":{'ChancesOfWinning':ChancesOfWinning}})
-    if WonLost not in result['Won/Lost']:
-        dropDownDB.update_one({},{"$push":{'Won/Lost':WonLost}})
+    if WonLost not in result['WonLost']:
+        dropDownDB.update_one({},{"$push":{'WonLost':WonLost}})
+
+def editDropDown(data):
+    # print(data)
+    #edit data that was sent from frontend
+    _id = data['_id']
+    Customer = data['Customer']
+
+    #data got from db
+    dbData = list(salespipeline.Year2024Data.find({'_id':ObjectId(_id)},{'_id':0}))[0]
+    # print(dbData)
+    dbCustomer = dbData['Customer']
+
+
+    #get data of dropdown
+    result = dropDownDB.find_one({},{'_id':0})
+
+    if Customer != dbCustomer and Customer not in result['Customers']:
+        #check whether any other record has that Customer or not
+        freq_map = getFrequencies('Customer')
+        if freq_map[dbCustomer] == 1:
+            dropDownDB.update_one({},{"$pull":{'Customers':dbCustomer}})
+        dropDownDB.update_one({},{"$push":{'Customers':Customer}})
+    
+    # if Channel != dbChannel and Channel not in result['Channel']:
+    #     #check whether any other record has that Customer or not
+    #     freq_map = getFrequencies()
+    #     if freq_map[dbChannel] == 1:
+    #         dropDownDB.update_one({},{"$pull":{'Channel':dbChannel}})
+    #     dropDownDB.update_one({},{"$push":{'Channel':dbChannel}})
+    
+def getFrequencies(field):
+    allDbData = list(salespipeline.Year2024Data.find())
+    freq_map = {}
+
+    for doc in allDbData:
+        freq_map[doc.get(f'{field}')] = freq_map.get(doc.get(f'{field}'), 0) + 1
+    return freq_map
 
 
 def getAllCalculations(year):
