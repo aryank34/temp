@@ -32,43 +32,80 @@ def get_timesheets_for_employee(client, employee_id):
         JSON response: A JSON response containing the timesheets or an error message.
     """
     try: 
-        # Access the 'EmployeeSheets' collection
-        employee_sheets_collection = client.TimesheetDB.EmployeeSheets
-
         # Use aggregation pipeline to match the employee ID and project the required fields
-        pipeline = [ 
-        #             {"$match": 
-        #             {"employeeID": ObjectId(employee_id)}},
-        #             {"$project": {"Manager":  "$managerID",
-        #                           "StartDate":  "$startDate",
-        #                           "EndDate":    "$endDate",
-        #                         #   "EmployeeSheetVersion":   "$employeeSheetInstances.version",
-        #                           "Status":  "$status",
-        #                           "Project":   "$employeeSheetInstances.employeeSheetObject.projectID",
-        #                           "Task":  "$employeeSheetInstances.employeeSheetObject.taskID",
-        #                           "WorkDayDetails":   "$employeeSheetInstances.employeeSheetObject.workDay",
-        #                           "Description":  "$employeeSheetInstances.employeeSheetObject.description"
-        #             }}
-        #             ]    
-                        {"$match": 
-                        {"employeeID": ObjectId(employee_id)}},
-                        {"$project": {"Manager":  "$managerID",
-                            "StartDate":  "$startDate",
-                            "EndDate":    "$endDate",
-                        "employeeSheetInstances":   "$employeeSheetInstances",
-                            "Status":  "$status"
-                        }}
-                    ]
-        
-
-        # Aggregate the employee_sheets collection using the pipeline
-        employee_sheets = employee_sheets_collection.aggregate(pipeline)
-        # Convert the employee_sheets cursor object to a list
-        timesheets = list(employee_sheets)
+        timesheet_pipeline = [ 
+                                {"$match": {"employeeID": ObjectId(employee_id)}},
+                                {"$project": {"Manager":  "$managerID",
+                                                "StartDate":  "$startDate",
+                                                "EndDate":    "$endDate",
+                                                "employeeSheetInstances":   "$employeeSheetInstances",
+                                                "Status":  "$status"}}
+                            ]
+        timesheets = list(client.TimesheetDB.EmployeeSheets.aggregate(timesheet_pipeline))
 
         # Check if Timesheet list is empty
         if not timesheets:
             return make_response(jsonify({"message": "No Timesheets here yet"}), 200)
+        
+        work_pipeline = [
+                            {"$unwind": "$assignedTo",},
+                            {"$lookup": {"from": "Members",
+                                        "localField": "assignedTo",
+                                        "foreignField": "_id",
+                                        "as": "member"}},
+                            {"$unwind": "$member"},
+                            {"$lookup": {"from": "Members",
+                                        "localField": "assignedBy",
+                                        "foreignField": "_id",
+                                        "as": "manager"}},
+                            {"$unwind": "$manager"},
+                            {"$lookup": {"from": "Tasks",
+                                        "localField": "taskID",
+                                        "foreignField": "_id",
+                                        "as": "task"}},
+                            {"$unwind": "$task"},
+                            {"$lookup": {"from": "Projects",
+                                        "localField": "task.projectID",
+                                        "foreignField": "_id",
+                                        "as": "project"}},
+                            {"$unwind": "$project"},
+                            {"$project": {"Assignment Name": "$name",
+                                            "Project": {"projectID": "$project._id",
+                                                        "Project Name": "$project.name"},
+                                            "Task": {"taskID": "$task._id",
+                                                    "Task Name": "$task.name",
+                                                    "Billable": "$task.billable",
+                                                    "Task Description": "$task.description"},
+                                            "Employee": {"employeeID": "$member._id",
+                                                        "Employee Name": "$member.name"},
+                                            "Manager": {"managerID": "$manager._id",
+                                                        "Manager Name": "$manager.name"}}},
+                            {"$match": {"Employee.employeeID": ObjectId(employee_id)}}
+                        ]
+
+        work = list(client.WorkBaseDB.Assignments.aggregate(work_pipeline))
+
+        manager_dict, project_dict, task_dict = ({item[key]['managerID' if key == 'Manager' else 'projectID' if key == 'Project' else 'taskID']: item[key] for item in work} for key in ['Manager', 'Project', 'Task'])
+        for i in range(len(timesheets)):
+            manager_id = timesheets[i]['Manager']
+            manager_item = manager_dict.get(manager_id)
+            if manager_item:
+                # Merge Manager details
+                timesheets[i]['Manager'] = manager_item
+
+                # Merge Project and Task details in employeeSheetInstances
+                for j in range(len(timesheets[i]['employeeSheetInstances'])):
+                    project_id = timesheets[i]['employeeSheetInstances'][j]['employeeSheetObject'].pop('projectID', None)
+                    if project_id is not None:
+                        project_item = project_dict.get(project_id)
+                        if project_item:
+                            timesheets[i]['employeeSheetInstances'][j]['employeeSheetObject']['Project'] = project_item
+                    task_id = timesheets[i]['employeeSheetInstances'][j]['employeeSheetObject'].pop('taskID', None)
+                    if task_id is not None:
+                        task_item = task_dict.get(task_id)
+                        if task_item:
+                            timesheets[i]['employeeSheetInstances'][j]['employeeSheetObject']['Task'] = task_item
+
 
         # Convert the employee_sheets cursor object to a JSON object
         timesheets_json = json.dumps(timesheets, default=str)
