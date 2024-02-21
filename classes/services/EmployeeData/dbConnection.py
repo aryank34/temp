@@ -1,6 +1,9 @@
-from flask import make_response,jsonify, send_file
+import base64
+from typing import ByteString
+from flask import make_response,jsonify, send_file,request
 from pymongo import MongoClient
-
+from gridfs import GridFS
+# from werkzeug.utils import secure_filename
 #to get Object Id from mongodb
 from bson.objectid import ObjectId
 
@@ -19,6 +22,7 @@ from datetime import datetime, timedelta
 from werkzeug.utils import secure_filename
 from gridfs import GridFS
 
+
 load_dotenv(find_dotenv())
 
 #for creating jwt 
@@ -34,11 +38,13 @@ import jwt
 mongo_password = os.environ.get("MONGO_PWD")
 
 #python-mongo connection string
-connection_string = f"mongodb+srv://admin:{mongo_password}@employeeportal.yyyw48g.mongodb.net/?retryWrites=true&w=majority"
-client = MongoClient(connection_string, UuidRepresentation="standard")
+# connection_string = f"mongodb+srv://admin:EC2024@employeeportal.yyyw48g.mongodb.net/"
+client = MongoClient(f"mongodb+srv://admin:{mongo_password}@employeeportal.yyyw48g.mongodb.net/", UuidRepresentation="standard")
 db = client.sample_employee
 employeeData = client.sample_employee.employeeData
 userProvisioningData = client.sample_employee.UserProvisioningData
+fs = GridFS(db)  
+fs = GridFS(db, collection='employeeData')
 
 def checkUserValidity(id):
     try:
@@ -83,13 +89,39 @@ def checkUserValidity(id):
 def replace_null(value, placeholder='NA'):
     return placeholder if value is None else value
 
+def get_profile_picture(id):
+    try:
+        file_data = employeeData.find_one({'id': UUID(id)}, {'_id': 0, 'profile_picture_id': 1})
+        if file_data and 'profile_picture_id' in file_data:
+            file_id = file_data['profile_picture_id']
+            file_doc = fs.get(file_id)
+            file_extension = file_doc.content_type.split("/")[1]
+            encoded_image = base64.b64encode(file_doc.read()).decode('utf-8')
+            return f"data:image/{file_extension};base64,{encoded_image}"
+    except Exception as e:
+        return None
+
 #get data from mongodb
 def get_employee_data(id):
     try:
-        employee = list(employeeData.find({'id':UUID(id)},{'_id':0,'id':1,'emp_id':1,'FirstName':1,'LastName':1,'mail':1,'team':1,'Designation':1,'ContactNo':1,'Address':1,'ReportingTo':1,'status':1,'Date_of_Joining':1,'Emergency_Contact_Name':1,'Emergency_Contact_Number':1,'Emergency_Relation':1,'Certificate_Name':1}))[0]
-        
+
+        employee = list(employeeData.find({'id':UUID(id)},{'_id':0,'id':1,'emp_id':1,'FirstName':1,'LastName':1,'mail':1,'team':1,'Designation':1,'ContactNo':1,'Address':1,'ReportingTo':1,'status':1,'Date_of_Joining':1,'Emergency_Contact_Name':1,'Emergency_Contact_Number':1,'Emergency_Relation':1,'Certificate_Name':1, 'profile_picture_id':1}))[0]
+        if "profile_picture_id" not in employee:
+            employee["profile_picture_id"] = ""
+        else:
+
+            employee["profile_picture_id"]= str(employee["profile_picture_id"])
+        # print(employee)
+        profile_picture = get_profile_picture(id)
+        # print(profile_picture)
+        if profile_picture:
+           
+            employee['profile_picture'] = profile_picture
+            # print (type(employee['profile_picture']))
+            # print(employee)
         return make_response(jsonify(employee), 200)
-    
+        # return make_response({"message":employee}, 200)
+   
     except Exception as e:
         return make_response({"Error is fetching basic info: ",e}, 500)
 
@@ -222,7 +254,47 @@ def send_document(id,file_type):
         # print(aadhar)
         return send_file(file_doc, mimetype=file_doc.content_type, download_name=f"{filename}")
     except Exception as e:
+ 
         return make_response({"ERROR":"File not available"}, 500)
+
+def Upload_profile_picture(id):
+    try:
+        
+            profile_picture = request.files['profile_picture']
+            # print(profile_picture)
+            if profile_picture is not None:
+                filename = secure_filename(profile_picture.filename)
+                print(f"Uploading profile picture: {filename}")
+                  
+            # Fetch the user from MongoDB based on the unique ID
+                employeeData = db.employeeData.find_one({'id': UUID(id)})
+                existing_user = db.employeeData.find_one({'id': UUID(id)})
+                if existing_user:
+                # Check if the user has an existing profile picture
+                    if existing_user.get('profile_picture_id'):
+                    # Delete the previous profile picture
+                        previous_picture_id = existing_user['profile_picture_id']
+                        fs.delete(previous_picture_id)
+                        # print(f"Previous profile picture deleted for user {id}.")
+    
+        
+            
+                if employeeData:
+                        # Save file to MongoDB using GridFS
+                        grid_file= fs.put(profile_picture.stream, filename=filename, content_type=profile_picture.content_type, id=UUID(id)) 
+        
+                        # Associate the file with the user in the employeeData collection
+                        db.employeeData.update_one({'id': UUID(id)}, {'$set': {'profile_picture_id':grid_file}})
+                        # print(f"Profile picture {filename} uploaded successfully.")
+                        return jsonify({'success': 'Profile picture uploaded successfully'}), 200
+                else:
+                    return 'User not found', 404
+            else:
+                return 'File not provided', 400
+    except Exception as e:
+ 
+        return make_response({"ERROR":"File not available"}, 500)
+
 
 
 

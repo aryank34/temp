@@ -1,4 +1,4 @@
-from .dbConnection import get_employee_data,edit_employee_data,upload_documents, send_document, check_documents
+from .dbConnection import Upload_profile_picture, get_employee_data,edit_employee_data,upload_documents, send_document, check_documents
 from flask import jsonify, Blueprint, request, make_response
 from ..loginAuth.tokenAuth import tokenAuth
 
@@ -19,6 +19,8 @@ def send_employee_data():
             # print(id)
 
             #get employee data basic info and send it to frontend
+            # result= make_response({"message": get_employee_data(id)},200)
+            # return result
             return get_employee_data(id)
         # if request.method == 'GET':
         #     return make_response('',204)
@@ -119,6 +121,8 @@ def downloadDocument(any):
         # return send_document(id,'aadhar')
     except Exception as e:
         return make_response({"ERROR":str(e)}, 500)
+
+
     
 # @employeeDataView.route("/dashboard/employeedata/documents/pan", methods=['GET'])
 # @auth.token_auth("/dashboard/employeedata/documents/pan")
@@ -128,3 +132,12 @@ def downloadDocument(any):
 #         return send_document(id,'pan')
 #     except Exception as e:
 #         return make_response({"ERROR":str(e)}, 500)
+    
+@employeeDataView.route('/dashboard/employeedata/uploadprofilepicture', methods=['POST'])
+@auth.token_auth("/dashboard/employeedata/uploadprofilepicture")
+
+def upload_profile_pic():
+    id = tokenAuth.token_decode(request.headers.get('Authorization'))['payload']['id']
+    result= Upload_profile_picture(id)
+
+    return result
