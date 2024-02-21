@@ -40,7 +40,14 @@ def get_timesheets_for_manager(client, manager_id, status=None):
                                 "localField": "managerSheetsInstances.managerSheetsObjects",
                                 "foreignField": "_id",
                                 "as": "managerSheets"}},
+                            {"$match": {"managerSheets.status": { "$ne": "Review" }}},
                             {"$unwind": "$managerSheets"},
+                            {"$lookup": {
+                                "from": "AssignmentGroup",
+                                "localField": "managerSheets.assignGroupID",
+                                "foreignField": "_id",
+                                "as": "assignGroup"}},
+                            {"$unwind": "$assignGroup"},
                             {"$project": {"managerSheetID": "$managerSheets._id",
                                         "Last Update Date": "$managerSheetsInstances.lastUpdateDate",
                                         "Sheet Version": "$managerSheetsInstances.version",
@@ -57,8 +64,9 @@ def get_timesheets_for_manager(client, manager_id, status=None):
                                                 "k": "$$day.k",
                                                 "v": "$$day.v.work"}}}},
                                         "Description": "$managerSheets.description",
-                                        "Assigned To": "$managerSheets.assignGroupID"
-                                        }}
+                                        "Assignee": "$assignGroup",
+                                        }},
+                            
                             ]
         review_pipeline = [
                     {"$match": {"managerID": ObjectId(manager_id)}},
@@ -68,9 +76,7 @@ def get_timesheets_for_manager(client, manager_id, status=None):
                         "localField": "managerSheetsInstances.managerSheetsObjects",
                         "foreignField": "_id",
                         "as": "managerSheets"}},
-                    {"$match": {
-                        "managerSheets.status": "Review"
-                    }},
+                    {"$match": {"managerSheets.status": "Review"}},
                     {"$unwind": "$managerSheets"},
                     {"$project": {"Employee": "$managerSheets.employeeID",
                                 "Project": "$managerSheets.employeeSheetInstances.employeeSheetObject.projectID",
@@ -129,7 +135,40 @@ def get_timesheets_for_manager(client, manager_id, status=None):
                                                         "Manager Name": "$manager.name"}}},
                             {"$match": {"Employee.employeeID": ObjectId(manager_id)}}
                         ]
-
+        work = list(client.WorkBaseDB.Assignments.aggregate(work_pipeline))
+        assign_pipeline = [{
+                            "$lookup": {
+                              "from": "Members",
+                              "localField": "assignedTo",
+                              "foreignField": "_id",
+                              "as": "assignedTo"
+                            }
+                          },
+                          {
+                            "$addFields": {
+                              "assignedMembers": {
+                                "$map": {
+                                  "input": "$assignedTo",
+                                  "as": "member",
+                                  "in": {
+                                    "_id": "$$member._id",
+                                    "name": "$$member.name"
+                                  }
+                                }
+                              }
+                            }
+                          },
+                        {
+                            "$project": {
+                              "_id": 0,
+                            "assignmentID": "$_id",
+                            "name": 1,
+                            "assignedMembers": 1
+                            }
+                          },
+                        ]
+        assign = list(client.WorkBaseDB.Assignments.aggregate(assign_pipeline))
+        
 
         filtered_timesheets = []
         if status == "Draft":
@@ -144,6 +183,24 @@ def get_timesheets_for_manager(client, manager_id, status=None):
             if ts.get('Status') in query:
                 filtered_timesheets.append(ts)
             
+        if status == "Draft" or status == "Assign":
+            project_dict= {item['Project']['projectID']: item['Project'] for item in work}
+            assign_dict= {item['assignmentID']: item for item in assign}
+            for i in range(len(filtered_timesheets)):
+                project_id = filtered_timesheets[i]['Project']
+                project_item = project_dict.get(project_id)
+                if project_item:
+                    # Merge Project details
+                    filtered_timesheets[i]['Project'] = project_item
+            
+                # Iterate over assignmentInstances in Assignee
+                for j in range(len(filtered_timesheets[i]['Assignee']['assignmentInstances'])):
+                    assign_id = filtered_timesheets[i]['Assignee']['assignmentInstances'][j]['assignmentID']
+                    assign_item = assign_dict.get(assign_id)
+                    if assign_item:
+                        # Replace assignmentID with the corresponding item from the new pipeline
+                        filtered_timesheets[i]['Assignee']['assignmentInstances'][j]['assignmentID'] = assign_item
+    
 
         # Check if Timesheet list is empty
         if not filtered_timesheets:
@@ -248,6 +305,80 @@ def store_data(data,manager_id,client):
         )
 
         return make_response(jsonify({"message": "Timesheet Creation Successful"}), 200)
+    except Exception as e:
+        # If an error occurs, return the error response
+        return make_response(jsonify({"error": str(e)}), 500)
+
+def edit_timesheet(manager_uuid, timesheet):
+    """
+    This function creates a new timesheet for a manager.
+    It takes the manager ID, timesheet data, and the collection to save to as input.
+    It returns a JSON response containing the new timesheet or an error message.
+    """
+    try:
+        # Check the connection to the MongoDB server
+        client = dbConnectCheck()
+
+        if isinstance(client, MongoClient):
+
+            # correct data field formats for timesheet
+            # check if the managerID is valid
+            verify = get_WorkAccount(client, manager_uuid)
+            if not verify.status_code == 200:
+                # If the connection fails, return the error response
+                return verify
+            manager_id= verify.json['_id']
+
+
+            if timesheet is not None:
+
+                # check if assignGroupID is valid
+                if timesheet['assignGroupID'] is not None:
+                    timesheet['assignGroupID'] = ObjectId(timesheet['assignGroupID'])
+                    verify = verify_attribute(collection=client.TimesheetDB.AssignmentGroup, key="_id",attr_value=timesheet['assignGroupID'])
+                    if not verify.status_code == 200:
+                        # If the connection fails, return the error response
+                        return verify
+                else:
+                    return make_response(jsonify({"error": "timesheet \"assignGroupID\" data is required"}), 400)
+
+                # check if projectID is valid
+                if 'projectID' in timesheet:
+                    timesheet['projectID'] = ObjectId(timesheet['projectID'])
+                    verify = verify_attribute(collection=client.WorkBaseDB.Projects, key="_id",attr_value=timesheet['projectID'])
+                    if not verify.status_code == 200:
+                        # If the connection fails, return the error response
+                        return verify
+                else:
+                    return make_response(jsonify({"error": "timesheet \"projectID\" data is required"}), 400)
+                    
+                # check if startDate is greater than endDate format:2024-02-05 18:30:00
+                if 'startDate' in timesheet and 'endDate' in timesheet:
+                    start = datetime.strptime(timesheet['startDate'], "%Y-%m-%d %H:%M:%S")
+                    end = datetime.strptime(timesheet['endDate'], "%Y-%m-%d %H:%M:%S")
+                    curr = datetime.now()
+                    if (start >= end) or (start<=curr) or (end<=curr):
+                        return make_response(jsonify({"error": "timesheet duration data is incorrect"}), 400)
+                else:
+                    return make_response(jsonify({"error": "timesheet duration data is required"}), 400)
+
+            else:
+                return make_response(jsonify({"error": "timesheet data is required"}), 400)
+
+
+            
+            newmanagerSheet=store_data(timesheet,manager_id,client)
+            
+            if not newmanagerSheet.status_code == 200:
+                # If the connection fails, return the error response
+                return newmanagerSheet
+            # Return the new timesheet as a JSON response
+            return make_response(jsonify({"message": str(newmanagerSheet.json['message'])}), 200)    
+
+        else:
+            # If the connection fails, return the error response
+            return make_response(jsonify({"error": "Failed to connect to the MongoDB server"}), 500)
+            
     except Exception as e:
         # If an error occurs, return the error response
         return make_response(jsonify({"error": str(e)}), 500)
@@ -499,15 +630,13 @@ def get_workData(client, manager_id):
   {
     "$project": {
       "_id": 0,
-      "tasks": 0,
-      "assignments": 0,
-      "members": 0,
-      "employeeDataID": 0,
-      "teams": 0,
-      "teamMembers": 0,
-      "teamID": 0,
-      "name": 0,
-      "role": 0,
+    "managerID": "$_id",
+    "projects": 1
+    }
+  },
+  {
+    "$match": {
+      "managerID": ObjectId(manager_id)
     }
   }
 ]
