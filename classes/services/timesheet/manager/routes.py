@@ -2,12 +2,31 @@
 from flask import Blueprint, jsonify, request
 
 # Import custom module
-from .utils import create_timesheet, fetch_timesheets
+from .utils import create_timesheet, fetch_timesheets, fetch_managerData
 
 from ...loginAuth.tokenAuth import tokenAuth
 auth = tokenAuth()
 
 manager_timesheet_bp = Blueprint("manager_timesheet", __name__)
+
+@manager_timesheet_bp.route("/timesheet/manager", methods=["GET"])
+@auth.token_auth("/timesheet/manager")
+def get_manager_data():
+    try:
+        # Get the 'uid' from the request's JSON data
+        # uuid = request.json.get("id")
+        uuid = tokenAuth.token_decode(request.headers.get('Authorization'))['payload']['id']
+
+        # Call the fetch_managerTimesheets function from the utils module
+        managerData_response = fetch_managerData(uuid)
+
+        # Return the response from the userType function
+        return managerData_response
+
+    except Exception as e:
+        # Handle any exceptions and return an error response
+        error_message = str(e)
+        return jsonify({'error': error_message}), 500
 
 @manager_timesheet_bp.route("/timesheet/manager/assign", methods=["GET"])
 @auth.token_auth("/timesheet/manager/assign")

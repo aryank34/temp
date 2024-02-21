@@ -1,15 +1,12 @@
 # Import necessary modules
 from datetime import datetime, timedelta
-from uuid import UUID
 from bson import ObjectId
-from bson.binary import UuidRepresentation
 from flask import Flask, jsonify, make_response
 from pymongo import MongoClient
-from pymongo.server_api import ServerApi
 import os
 from dotenv import load_dotenv, find_dotenv
 import json
-from ...models import TimesheetRecord,ManagerSheetsAssign,ManagerSheetsInstance,WorkDay
+from ...models import ManagerSheetsAssign,ManagerSheetsInstance,WorkDay
 from ....connectors.dbConnector import dbConnectCheck, get_WorkAccount, verify_attribute
 
 # Create a new Flask web server instance
@@ -34,11 +31,6 @@ def get_timesheets_for_manager(client, manager_id, status=None):
         JSON response: A JSON response containing the timesheets or an error message.
     """
     try: 
-        # Access the 'TimesheetRecords' collection
-        timesheet_collection = client.TimesheetDB.TimesheetRecords
-
-        
-
         # Use aggregation pipeline to match the employee ID and project the required fields
         default_pipeline = [
                             {"$match": {"managerID": ObjectId(manager_id)}},
@@ -90,30 +82,65 @@ def get_timesheets_for_manager(client, manager_id, status=None):
                                 "Description": "$managerSheets.employeeSheetInstances.employeeSheetObject.description"
                                 }}
                     ]
-        
-
 
         # Check the status of the timesheets
         if status == "Draft" or status == "Assign":
-            timesheet = timesheet_collection.aggregate(default_pipeline)
-        elif status is "Review":
+            timesheets = client.TimesheetDB.TimesheetRecords.aggregate(default_pipeline)
+        elif status == "Review":
             # return make_response(jsonify({"message": "Working in review"}), 200)
-            timesheet = timesheet_collection.aggregate(review_pipeline)
+            timesheets = client.TimesheetDB.TimesheetRecords.aggregate(review_pipeline)
 
         # Check if Timesheet Exists
-        if not timesheet:
+        if not timesheets:
             return make_response(jsonify({"message": "No Timesheets here yet"}), 200)
         
+        work_pipeline = [
+                            {"$unwind": "$assignedTo",},
+                            {"$lookup": {"from": "Members",
+                                        "localField": "assignedTo",
+                                        "foreignField": "_id",
+                                        "as": "member"}},
+                            {"$unwind": "$member"},
+                            {"$lookup": {"from": "Members",
+                                        "localField": "assignedBy",
+                                        "foreignField": "_id",
+                                        "as": "manager"}},
+                            {"$unwind": "$manager"},
+                            {"$lookup": {"from": "Tasks",
+                                        "localField": "taskID",
+                                        "foreignField": "_id",
+                                        "as": "task"}},
+                            {"$unwind": "$task"},
+                            {"$lookup": {"from": "Projects",
+                                        "localField": "task.projectID",
+                                        "foreignField": "_id",
+                                        "as": "project"}},
+                            {"$unwind": "$project"},
+                            {"$project": {"Assignment Name": "$name",
+                                            "Project": {"projectID": "$project._id",
+                                                        "Project Name": "$project.name"},
+                                            "Task": {"taskID": "$task._id",
+                                                    "Task Name": "$task.name",
+                                                    "Billable": "$task.billable",
+                                                    "Task Description": "$task.description"},
+                                            "Employee": {"employeeID": "$member._id",
+                                                        "Employee Name": "$member.name"},
+                                            "Manager": {"managerID": "$manager._id",
+                                                        "Manager Name": "$manager.name"}}},
+                            {"$match": {"Employee.employeeID": ObjectId(manager_id)}}
+                        ]
+
+
         filtered_timesheets = []
         if status == "Draft":
             query = ["Draft"]
-        # is statuses of timesheet is manage, select Active, Upcoming, and review
+        # is statuses of timesheets is manage, select Active, Upcoming, and review
         elif status == "Assign":
             query = ["Active", "Upcoming"]
         elif status == "Review":
             query = ["Review"]
 
-        for ts in timesheet:
+        for ts in timesheets:
             if ts.get('Status') in query:
                 filtered_timesheets.append(ts)
             
@@ -295,6 +322,233 @@ def create_timesheet(manager_uuid, timesheet):
             # If the connection fails, return the error response
             return make_response(jsonify({"error": "Failed to connect to the MongoDB server"}), 500)
             
+    except Exception as e:
+        # If an error occurs, return the error response
+        return make_response(jsonify({"error": str(e)}), 500)
+
+def get_workData(client, manager_id):
+    """
+    Retrieves all assignments, projects, tasks, and employees for a manager from the database.
+
+    Args:
+        client (MongoClient): An instance of MongoClient.
+        manager_id (str): The ID of the manager.
+
+    Returns:
+        JSON response: A JSON response containing the manager data or an error message.
+    """
+    try: 
+        # Use aggregation pipeline to match the employee ID and project the required fields
+        work_pipeline = [
+  {
+    "$lookup": {
+      "from": "Projects",
+      "localField": "_id",
+      "foreignField": "managerID",
+      "as": "projects"
+    }
+  },
+  {
+    "$match": {
+      "projects": {
+        "$ne": []
+      }
+    }
+  },
+  {
+    "$lookup": {
+      "from": "Tasks",
+      "localField": "projects._id",
+      "foreignField": "projectID",
+      "as": "tasks"
+    }
+  },
+  {
+    "$lookup": {
+      "from": "Assignments",
+      "localField": "tasks._id",
+      "foreignField": "taskID",
+      "as": "assignments"
+    }
+  },
+  {
+    "$lookup": {
+      "from": "Members",
+      "localField": "assignments.assignedTo",
+      "foreignField": "_id",
+      "as": "members"
+    }
+  },
+  {
+    "$lookup": {
+      "from": "Teams",
+      "localField": "projects._id",
+      "foreignField": "projectID",
+      "as": "teams"
+    }
+  },
+  {
+    "$lookup": {
+      "from": "Members",
+      "localField": "teams._id",
+      "foreignField": "teamID",
+      "as": "teamMembers"
+    }
+  },
+  {
+    "$addFields": {
+      "projects": {
+        "$map": {
+          "input": "$projects",
+          "as": "project",
+          "in": {
+            "$mergeObjects": [
+              "$$project",
+              {
+                "tasks": {
+                  "$map": {
+                    "input": {
+                      "$filter": {
+                        "input": "$tasks",
+                        "as": "task",
+                        "cond": { "$eq": ["$$task.projectID", "$$project._id"] }
+                      }
+                    },
+                    "as": "task",
+                    "in": {
+                      "$mergeObjects": [
+                        "$$task",
+                        {
+                          "assignments": {
+                            "$map": {
+                              "input": {
+                                "$filter": {
+                                  "input": "$assignments",
+                                  "as": "assignment",
+                                  "cond": { "$eq": ["$$assignment.taskID", "$$task._id"] }
+                                }
+                              },
+                              "as": "assignment",
+                              "in": {
+                                "$mergeObjects": [
+                                  "$$assignment",
+                                  {
+                                    "assignedTo": {
+                                      "$map": {
+                                        "input": "$$assignment.assignedTo",
+                                        "as": "assignedToId",
+                                        "in": {
+                                          "$let": {
+                                            "vars": {
+                                              "member": {
+                                                "$filter": {
+                                                  "input": "$members",
+                                                  "as": "member",
+                                                  "cond": { "$eq": ["$$member._id", "$$assignedToId"] }
+                                                }
+                                              }
+                                            },
+                                            "in": { "$arrayElemAt": ["$$member", 0] }
+                                          }
+                                        }
+                                      }
+                                    }
+                                  }
+                                ]
+                              }
+                            }
+                          }
+                        }
+                      ]
+                    }
+                  }
+                },
+                "teams": {
+                  "$map": {
+                    "input": {
+                      "$filter": {
+                        "input": "$teams",
+                        "as": "team",
+                        "cond": { "$eq": ["$$team.projectID", "$$project._id"] }
+                      }
+                    },
+                    "as": "team",
+                    "in": {
+                      "$mergeObjects": [
+                        "$$team",
+                        {
+                          "teamMembers": {
+                            "$filter": {
+                              "input": "$teamMembers",
+                              "as": "teamMember",
+                              "cond": { "$eq": ["$$teamMember.teamID", "$$team._id"] }
+                            }
+                          }
+                        }
+                      ]
+                    }
+                  }
+                }
+              }
+            ]
+          }
+        }
+      }
+    }
+  },
+  {
+    "$project": {
+      "_id": 0,
+      "tasks": 0,
+      "assignments": 0,
+      "members": 0,
+      "employeeDataID": 0,
+      "teams": 0,
+      "teamMembers": 0,
+      "teamID": 0,
+      "name": 0,
+      "role": 0,
+    }
+  }
+]
+
+        manager_data = list(client.WorkBaseDB.Members.aggregate(work_pipeline))
+        # Convert the employee_sheets cursor object to a JSON object
+        manager_json = json.dumps(manager_data, default=str)
+        manager_data_results = json.loads(manager_json)
+        # Return the JSON response
+        return make_response(jsonify({"managerProjectData": manager_data_results}), 200)
+    
+    except Exception as e:
+        # If an error occurs, return the error response
+        return make_response(jsonify({"error": str(e)}), 500)
+
+def fetch_managerData(manager_uuid):
+    """
+    This function fetches the manager data for assignments, projects, tasks, employees used for timesheet assignments
+    It takes a manager ID as input.
+    It returns a JSON response containing the manager data or an error message.
+    """
+    try: 
+        # Check the connection to the MongoDB server
+        client = dbConnectCheck()
+        if isinstance(client, MongoClient):
+            # check if the userID is valid
+            verify = get_WorkAccount(client, manager_uuid)
+            if not verify.status_code == 200:
+                # If the connection fails, return the error response
+                return verify
+            manager_id = verify.json['_id']
+            # Call the get_timesheets_for_manager function with the manager ID
+            managerData_response = get_workData(client, manager_id)  
+            
+            return managerData_response
+            
+        else:
+            # If the connection fails, return the error response
+            return make_response(jsonify({"error": "Failed to connect to the MongoDB server"}), 500)
+            
+    
     except Exception as e:
         # If an error occurs, return the error response
         return make_response(jsonify({"error": str(e)}), 500)

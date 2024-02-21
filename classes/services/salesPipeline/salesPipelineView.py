@@ -1,6 +1,6 @@
 from flask import Blueprint, request, make_response
 from ..loginAuth.tokenAuth import tokenAuth
-from .dbConnection import addSalesRecord, getAllSalesRecords, getDropDownData, editSalesRecord, deleteSalesRecord, getAllYears 
+from .dbConnection import addSalesRecord, getAllSalesRecords, getDropDownData, editSalesRecord, deleteSalesRecord, getAllYears, downloadExcel
 
 auth = tokenAuth()
 
@@ -57,3 +57,9 @@ def deleteSalesPipeline():
     if request.method == 'DELETE':
         result = deleteSalesRecord(request.json)
         return result
+
+@salesPipelineView.route("/dashboard/salespipeline/excel", methods=['GET'])
+@auth.token_auth("/dashboard/salespipeline/excel")
+def sendExcel():
+    if request.method == "GET":
+        return downloadExcel()

@@ -1,4 +1,4 @@
-from flask import make_response
+from flask import make_response, send_file
 from pymongo import MongoClient
 #to get Object Id from mongodb
 from bson.objectid import ObjectId
@@ -12,8 +12,8 @@ import os
 #to get current year
 import datetime
 
-import json
-
+import xlsxwriter
+import io
 
 load_dotenv(find_dotenv())
 mongo_password = os.environ.get("MONGO_PWD")
@@ -314,3 +314,143 @@ def updateCalculations(year, data):
         salespipeline.CalculationData.update_one({'year':year},result)
     except Exception as e:
         return make_response({"ERROR":str(e)}, 500)
+    
+
+def downloadExcel():
+    try:
+        #create excel file
+        output = io.BytesIO()
+        workbook = xlsxwriter.Workbook(output)
+        # workbook = xlsxwriter.Workbook("SalesPipeline.xlsx")
+        # worksheet = workbook.add_worksheet("CurrentYear")
+        
+        #year 2024
+        data2024 = list(salespipeline.Year2024Data.find({},{'_id':0}))
+        worksheet = createExcel(workbook, data2024, 2024)
+
+        #year 2023
+        data2023 = list(salespipeline.Year2023Data.find({},{'_id':0}))
+        worksheet = createExcel(workbook, data2023, 2023)
+
+        data2022 = list(salespipeline.Year2022Data.find({},{'_id':0}))
+        worksheet = createExcel(workbook, data2022, 2022)
+
+        workbook.close()
+                
+        output.seek(0)
+        return send_file(
+            output,
+            mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            as_attachment=True,
+            download_name="SalesPipeline.xlsx",
+        )
+
+        # return make_response({"message":'true'}, 200)
+    except Exception as e:
+        return make_response({"ERROR":str(e)}, 500)
+    
+
+def createExcel(workbook, data, year):
+
+    worksheet = workbook.add_worksheet(f"Year {year}")
+     #cell formating
+    blue_text_wrap_format = workbook.add_format()
+    blue_text_wrap_format.set_text_wrap(True)
+    blue_text_wrap_format.set_bg_color('#000099')
+    blue_text_wrap_format.set_font_color('#FFFFFF')
+    blue_text_wrap_format.set_align('center')
+    blue_text_wrap_format.set_bold(True)
+    
+
+    bold_centre_format = workbook.add_format()
+    bold_centre_format.set_bold(True)
+    bold_centre_format.set_align('center')
+
+    right_format = workbook.add_format()
+    right_format.set_align('right')
+
+
+    #set the column width
+    worksheet.set_column(0,0, 30)
+    worksheet.set_column(1,1, 20)
+    worksheet.set_column(2,2, 15)
+    worksheet.set_column(8,8, 23)
+    worksheet.set_column(9,9, 15)
+    worksheet.set_column(10,10, 20)
+    worksheet.set_column(13,13, 10)
+    worksheet.set_column(14,14, 30)
+
+    worksheet.set_column(3,3, 10)
+    worksheet.set_column(4,4, 10)
+    worksheet.set_column(5,5, 10)
+    worksheet.set_column(6,6, 10)
+    worksheet.set_column(11,11, 10)
+    worksheet.set_column(12,12, 10)
+    worksheet.set_column(7,7, 10)
+
+    
+
+
+    #enter data to excel
+    worksheet.write(0,0, "ENCRYPTION CONSULTING, LLC",bold_centre_format)
+
+    today = datetime.date.today().strftime(f"%m-%d-%Y")
+    # print(today)
+    worksheet.write(1,0, today, bold_centre_format)
+
+    worksheet.write(2,0, "SALES SPREADSHEET", bold_centre_format)
+
+    #calculations
+    worksheet.write(0,8, "Current Year Project Total:", bold_centre_format)
+    worksheet.write(1,8, "Prior Year Project Total:",bold_centre_format)
+    worksheet.write(2,8, "Current Year Target Goal:",bold_centre_format)
+    worksheet.write(3,8, "Goal Achievement:",bold_centre_format)
+
+    calculations = getAllCalculations(year)
+    # print(calculations)
+    worksheet.write(0,9, calculations['Current_Year_Total'], right_format)
+    worksheet.write(1,9, calculations['Prior_Year_Total'], right_format)
+    worksheet.write(2,9, calculations['Current_Year_Target_Goal'], right_format)
+    worksheet.write(3,9, calculations['Goal_Achievement'], right_format)
+
+    #write columns
+    worksheet.write(7,0, "Customer", blue_text_wrap_format)
+    worksheet.write(7,1, "Type of Project", blue_text_wrap_format)
+    worksheet.write(7,2, "Channel", blue_text_wrap_format)
+    worksheet.write(7,3, "Reseller", blue_text_wrap_format)
+    worksheet.write(7,4, "EC Point of Contact", blue_text_wrap_format)
+    worksheet.write(7,5, "Cient Point of Contact", blue_text_wrap_format)
+    worksheet.write(7,6, "Client POC Email", blue_text_wrap_format)
+    worksheet.write(7,7, "Date Sold", blue_text_wrap_format)
+    worksheet.write(7,8, "Quarter", blue_text_wrap_format)
+    worksheet.write(7,9, "Year", blue_text_wrap_format)
+    worksheet.write(7,10, "Stage", blue_text_wrap_format)
+    worksheet.write(7,11, "Project Size", blue_text_wrap_format)
+    worksheet.write(7,12, "Chances of Winning", blue_text_wrap_format)
+    worksheet.write(7,13, "Won/Lost", blue_text_wrap_format)
+    worksheet.write(7,14, "Notes on Follow", blue_text_wrap_format)
+
+    last_row = 0
+    #enter the data
+    for index, entry in enumerate(data):
+        worksheet.write(8+index, 0, entry['Customer'])
+        worksheet.write(8+index, 1, entry['TypeOfProject'])
+        worksheet.write(8+index, 2, entry['Channel'])
+        worksheet.write(8+index, 3, entry['Reseller'])
+        worksheet.write(8+index, 4, entry['EC_PointOfContact'])
+        worksheet.write(8+index, 5, entry['Client_PointOfContact'])
+        worksheet.write(8+index, 6, entry['Client_POC_Email'])
+        worksheet.write(8+index, 7, entry['DateSold'])
+        worksheet.write(8+index, 8, entry['Quarter'])
+        worksheet.write(8+index, 9, entry['Year'])
+        worksheet.write(8+index, 10, entry['Stage'])
+        worksheet.write(8+index, 11, entry['ProjectSize'])
+        worksheet.write(8+index, 12, entry['ChancesOfWinning'])
+        worksheet.write(8+index, 13, entry['WonLost'])
+        worksheet.write(8+index, 14, entry['NotesOnFollow'])
+        last_row = 8+index
+
+    for col in range(15):  # Columns 0 to 14
+        worksheet.write(last_row+2, col, None, blue_text_wrap_format)
+
+    return worksheet
