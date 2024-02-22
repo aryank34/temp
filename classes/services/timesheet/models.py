@@ -9,10 +9,10 @@ from datetime import datetime
 from bson.objectid import ObjectId
 
 class ManagerSheetsInstance:
-    def __init__(self, lastUpdateDate: datetime, managerSheetsObjectID: ObjectId):
+    def __init__(self, lastUpdateDate: datetime, managerSheetsObjectID: ObjectId, version: int = 0):
         self.managerSheetsObjects = managerSheetsObjectID
         self.lastUpdateDate = lastUpdateDate
-        self.version = int(0)
+        self.version = version
     
     def to_dict(self):
         return {
@@ -85,13 +85,9 @@ class EmployeeSheetInstance:
         }
 
 class ManagerSheetReview:
-    def __init__(self, status: str, employeeSheetID: ObjectId, employeeID: ObjectId, startDate: datetime, endDate: datetime, employeeSheetInstances: list[EmployeeSheetInstance]):
-        self.startDate = startDate
-        self.endDate = endDate
+    def __init__(self, status: str, employeeSheetID: ObjectId):
         self.employeeSheetID = employeeSheetID
-        self.employeeSheetInstances = employeeSheetInstances
         self.status = status
-        self.employeeID = employeeID
 
 class EmployeeSheet:
     def __init__(self, managerSheetID: ObjectId, employeeID: ObjectId, managerID: ObjectId, startDate: datetime, endDate: datetime, employeeSheetInstances: list[EmployeeSheetInstance]):

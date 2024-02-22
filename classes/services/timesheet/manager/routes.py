@@ -93,7 +93,7 @@ def create_new_timesheet():
 
 @manager_timesheet_bp.route("/timesheet/manager/edit", methods=["POST"])
 @auth.token_auth("/timesheet/manager/edit")
-def edit_timesheet():
+def edit_existing_timesheet():
     try:
         # Get the JSON data sent with the POST request
         payload = request.get_json()

@@ -2,6 +2,7 @@ import base64
 from typing import ByteString
 from flask import make_response,jsonify, send_file,request
 from pymongo import MongoClient
+from pymongo.server_api import ServerApi
 from gridfs import GridFS
 # from werkzeug.utils import secure_filename
 #to get Object Id from mongodb
@@ -35,11 +36,13 @@ import jwt
 
 #database connection
 #get the fields from .env file
-mongo_password = os.environ.get("MONGO_PWD")
+# mongo_password = os.environ.get("MONGO_PWD")
+mongo_host = os.environ.get("MONGO_HOST_prim")
 
 #python-mongo connection string
 # connection_string = f"mongodb+srv://admin:EC2024@employeeportal.yyyw48g.mongodb.net/"
-client = MongoClient(f"mongodb+srv://admin:{mongo_password}@employeeportal.yyyw48g.mongodb.net/", UuidRepresentation="standard")
+uri = mongo_host
+client = MongoClient(uri, server_api=ServerApi('1'), UuidRepresentation="standard")
 db = client.sample_employee
 employeeData = client.sample_employee.employeeData
 userProvisioningData = client.sample_employee.UserProvisioningData
@@ -261,7 +264,7 @@ def Upload_profile_picture(id):
     try:
         
             profile_picture = request.files['profile_picture']
-            # print(profile_picture)
+            print(profile_picture)
             if profile_picture is not None:
                 filename = secure_filename(profile_picture.filename)
                 print(f"Uploading profile picture: {filename}")
@@ -275,7 +278,7 @@ def Upload_profile_picture(id):
                     # Delete the previous profile picture
                         previous_picture_id = existing_user['profile_picture_id']
                         fs.delete(previous_picture_id)
-                        # print(f"Previous profile picture deleted for user {id}.")
+                        print(f"Previous profile picture deleted for user {id}.")
     
         
             
@@ -285,7 +288,7 @@ def Upload_profile_picture(id):
         
                         # Associate the file with the user in the employeeData collection
                         db.employeeData.update_one({'id': UUID(id)}, {'$set': {'profile_picture_id':grid_file}})
-                        # print(f"Profile picture {filename} uploaded successfully.")
+                        print(f"Profile picture {filename} uploaded successfully.")
                         return jsonify({'success': 'Profile picture uploaded successfully'}), 200
                 else:
                     return 'User not found', 404

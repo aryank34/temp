@@ -1,6 +1,6 @@
 from flask import jsonify, Blueprint, request, make_response
 from ..EmployeeData.dbConnection import checkUserValidity
-from flask_jwt_extended import jwt_required, get_jwt
+# from flask_jwt_extended import jwt_required, get_jwt
 
 loginView = Blueprint('loginView',__name__)
 
