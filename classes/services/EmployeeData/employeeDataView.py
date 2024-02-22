@@ -1,6 +1,7 @@
 from .dbConnection import Upload_profile_picture, get_employee_data,edit_employee_data,upload_documents, send_document, check_documents
 from flask import jsonify, Blueprint, request, make_response
 from ..loginAuth.tokenAuth import tokenAuth
+from flask_cors import CORS, cross_origin
 
 
 #create object of authMongo class
@@ -87,6 +88,7 @@ def editEmployeeData():
 
 #get the documents/files from frontend, save it in a location, then save the path in mongodb
 @employeeDataView.route('/dashboard/employeedata/documents', methods=['GET','POST'])
+@cross_origin(supports_credentials=True)
 @auth.token_auth("/dashboard/employeedata/documents")
 def getEmployeeDocuments():
     '''
