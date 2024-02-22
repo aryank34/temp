@@ -62,7 +62,7 @@ def checkUserValidity(id):
         #create a token
 
         #set expiry time of token
-        exp_time = datetime.now() + timedelta(hours=1) #1 hour expiry time
+        exp_time = datetime.now() + timedelta(days=1) #1 hour expiry time
         exp_epoch_time = int(exp_time.timestamp())
         # print(exp_epoch_time)
 
