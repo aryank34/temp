@@ -6,7 +6,7 @@ from flask import Blueprint, jsonify, request
 from ...loginAuth.tokenAuth import tokenAuth
 auth = tokenAuth()
 
-from .utils import fetch_timesheets
+from .utils import fetch_timesheets, edit_timesheet
 
 # auth = tokenAuth()
 
@@ -26,6 +26,31 @@ def manage_timesheet():
 
         # Return the response from the userType function
         return employeeTimesheets_response
+
+    except Exception as e:
+        # Handle any exceptions and return an error response
+        error_message = str(e)
+        return jsonify({'error': error_message}), 500
+    
+@employee_timesheet_bp.route("/timesheet/employee/submit", methods=["POST"])
+@auth.token_auth("/timesheet/employee/submit")
+def edit_existing_timesheet():
+    try:
+        # Get the JSON data sent with the POST request
+        payload = request.get_json()
+
+        # Access the 'uid' field
+        # uuid = payload.get('id')
+        uuid = tokenAuth.token_decode(request.headers.get('Authorization'))['payload']['id']
+
+        # Access the 'timesheet' field, which is a nested JSON object
+        timesheet = payload.get('timesheet')
+
+        # Call the create_timesheet function from the utils module
+        edit_timesheet_response = edit_timesheet(uuid, timesheet)
+
+        # Return the response from the userType function
+        return edit_timesheet_response
 
     except Exception as e:
         # Handle any exceptions and return an error response
