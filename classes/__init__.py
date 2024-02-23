@@ -27,6 +27,8 @@ def create_app():
     from .services.salesPipeline.salesPipelineView import salesPipelineView
     #contract Renewal
     from .services.contractRenewal.ContractView import contract_renewal
+    #projects
+    from .services.projectManager.routes import project_manager_bp
 
 
     #register the routes
@@ -37,5 +39,6 @@ def create_app():
     app.register_blueprint(employee_timesheet_bp)
     app.register_blueprint(salesPipelineView)
     app.register_blueprint(contract_renewal)
+    app.register_blueprint(project_manager_bp)
 
     return app
