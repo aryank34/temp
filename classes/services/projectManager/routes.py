@@ -91,7 +91,7 @@ def create_new_team():
 # Define route for creating new task
 @project_manager_bp.route('/projects/tasks/create', methods=['POST'])
 @auth.token_auth("/projects/tasks/create")
-def create_new_team():
+def create_new_task():
     try:
         # Get the 'uid' from the request's JSON data
         # uid = request.json.get("uid")
