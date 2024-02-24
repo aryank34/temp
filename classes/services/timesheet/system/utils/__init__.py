@@ -2,6 +2,10 @@
 from concurrent.futures import ThreadPoolExecutor
 # Import datetime and timedelta from datetime for working with dates and times
 from datetime import datetime, timedelta
+# Import time for working with time
+import time
+# Import logging for logging messages to a file
+import logging
 # Import ObjectId from bson for creating unique identifiers in MongoDB
 from bson import ObjectId
 # Import pandas for data manipulation and analysis
@@ -22,6 +26,15 @@ from dotenv import find_dotenv, load_dotenv
 # Load environment variables from a .env file
 load_dotenv(find_dotenv())# Get the MongoDB host URI from environment variables
 mongo_host = os.environ.get("MONGO_HOST_prim")
+
+# Get the directory that contains the current file
+current_dir = os.path.dirname(os.path.abspath(__file__))
+# Get the parent directory
+parent_dir = os.path.dirname(current_dir)
+# Join the parent directory with the file name
+kill_file_path = os.path.join(parent_dir, 'kill_timesheet_sync.txt')
+log_file_path = os.path.join(parent_dir, 'logfile.log')
+logging.basicConfig(filename=log_file_path, level=logging.INFO)  # Set the logging configuration    
 
 # -------------------------------------------------------------------------------------
 # Define a class for managing sheet instances
@@ -295,7 +308,7 @@ def distribute_active_timesheets():
                             "startDate": "$manager.startDate",
                             "endDate": "$manager.endDate",
                             "status": "$manager.status",
-                            "projectID": "$manager.projectID",
+                            "projectID": "$assign.projectID",
                             "workDay": "$manager.workDay",
                             "description": "$manager.description",
                             "assignmentID": "$assign.assignmentInstances.assignmentID"}},
@@ -321,7 +334,7 @@ def distribute_active_timesheets():
                             "as": "task"}},
                 {"$unwind": "$task"},
                 {"$lookup":{"from": "Projects",
-                            "localField": "task.projectID",
+                            "localField": "projectID",
                             "foreignField": "_id",
                             "as": "project"}},
                 {"$unwind": "$project"},
@@ -426,7 +439,7 @@ def get_default_timesheets():
         client = dbConnectCheck()  # Check the database connection
         if isinstance(client, MongoClient):  # If the connection is successful
             # Find all EmployeeSheets documents where the status is "Submitted" and both Saturday and Sunday are not work days
-            default_timesheets = list(client.TimesheetDB.EmployeeSheets.find({"status": "Submitted", 
+            default_timesheets = list(client.TimesheetDB.EmployeeSheets.find({"status": "Ongoing", 
                                                                             "$and": [{"employeeSheetInstances": {"$elemMatch": {"employeeSheetObject.workDay.sat.work": False}}},
                                                                                     {"employeeSheetInstances": {"$elemMatch": {"employeeSheetObject.workDay.sun.work": False}}}]})
             )
@@ -444,7 +457,7 @@ def get_weekend_timesheets():
         client = dbConnectCheck()  # Check the database connection
         if isinstance(client, MongoClient):  # If the connection is successful
             # Find all EmployeeSheets documents where the status is "Submitted" and either Saturday or Sunday is a work day
-            weekend_timesheets = list(client.TimesheetDB.EmployeeSheets.find({"status": "Submitted", 
+            weekend_timesheets = list(client.TimesheetDB.EmployeeSheets.find({"status": "Ongoing", 
                                                                             "$or": [
                                                                                 {"employeeSheetInstances": {"$elemMatch": {"employeeSheetObject.workDay.sat.work": True}}},
                                                                                 {"employeeSheetInstances": {"$elemMatch": {"employeeSheetObject.workDay.sun.work": True}}}]})
@@ -482,10 +495,10 @@ class Scheduler:
 
     def stop(self):
         # Check if the stop file exists
-        if os.path.exists('stop.txt'):
+        if os.path.exists(kill_file_path):
             # If the stop file exists, stop the scheduler and remove the stop file
             print('Stopping scheduler...')
-            os.remove('kill_code.txt')
+            os.remove(kill_file_path)
             self.scheduler.shutdown()
         else:
             # If the stop file does not exist, print a message indicating that the job is running
@@ -497,7 +510,13 @@ def main():
     s = Scheduler()
     # Start the scheduler
     s.start()
+    while not os.path.exists(kill_file_path):
+        time.sleep(2)
     # When you want to stop the scheduler, call the stop method
     s.stop()
 
 
+# driver code
+if __name__ == "__main__":
+    
+    main()

@@ -115,6 +115,15 @@ class AssignmentInstance:
         self.assignmentID = assignmentID
 
 class AssignmentGroup:
-    def __init__(self, name: str, assignmentInstances: list[AssignmentInstance]):
+    def __init__(self, name: str, assignedBy: ObjectId, projectID: ObjectId, assignmentInstances: list[AssignmentInstance]):
         self.name = name
+        self.assignedBy = assignedBy
+        self.projectID = projectID
         self.assignmentInstances = assignmentInstances
+    def to_dict(self):
+        return {
+            "name": self.name,
+            "assignedBy": self.assignedBy,
+            "projectID": self.projectID,
+            "assignmentInstances": [vars(assignmentInstance) for assignmentInstance in self.assignmentInstances]
+        }

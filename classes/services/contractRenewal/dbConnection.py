@@ -4,8 +4,8 @@ from flask import jsonify, request
 from pymongo import MongoClient
 from bson.objectid import ObjectId
 from dotenv import load_dotenv, find_dotenv
-from flask_mail import Mail, Message  #pip3 install Flask-Mail
-from apscheduler.schedulers.background import BackgroundScheduler  #pip install apscheduler
+# from flask_mail import Mail, Message  #pip3 install Flask-Mail
+# from apscheduler.schedulers.background import BackgroundScheduler  #pip install apscheduler
 from datetime import datetime, timedelta
 import os
 

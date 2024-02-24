@@ -22,6 +22,296 @@ client = MongoClient(connection_string, UuidRepresentation="standard")
 salespipeline = client.SalesPipeline
 dropDownDB = salespipeline.dropDownData
 
+sp = client.SalesPipelineDB
+
+def displayData(year, type):
+    try:
+        type = type.capitalize()
+        # print(type)
+        result = list(sp.list_collection_names())
+        # print(result)
+        collection_name = ""
+        for c in result:
+            if c.startswith("Year") and c.endswith("Data"):
+                c = c.replace("Year","")
+                c = c.replace("Data","")
+                # years.append(int(c))
+                if int(c) == year:
+                    collection_name = f"Year{c}Data"
+                    # print(collection_name)
+                    
+                    break
+        if collection_name == "":
+            return make_response({"ERROR":"No data for this year error"}, 404)
+        data = list(sp[collection_name].find({"Type":type},{}))
+        # print(data)
+        data_obj={}
+        for index,sale in enumerate(data, start=1):
+            data_obj[index] = sale
+            data_obj[index]['_id'] = str(data_obj[index]['_id'])
+        # print(data_obj)
+                        
+        #send calculations of specific type
+        calculations = calculateSales(year, type, data)
+        # calculations = sp.CalculationData.find_one({"Year":year},{"_id":0})
+        # print(calculations)
+        
+        return make_response({"message":data_obj, "calculation":calculations}, 200)
+    except Exception as e:
+        return make_response({"ERROR":str(e)}, 500)
+
+def addData(data, year, type):
+    try:
+        # print(data)
+        type = type.capitalize()
+        data = data[type]
+        result = list(sp.list_collection_names())
+        # print(result)
+        collection_name = ""
+        for c in result:
+            if c.startswith("Year") and c.endswith("Data"):
+                c = c.replace("Year","")
+                c = c.replace("Data","")
+                # years.append(int(c))
+                if int(c) == year:
+                    collection_name = f"Year{c}Data"
+                    # print(collection_name)
+                    break
+
+        if collection_name == "":
+            return make_response({"ERROR":"No data for this year error"}, 404)
+        
+        count = sp[collection_name].count_documents({"Type":type})
+        # print(count)
+        if (type == 'Sale' and 'PO_Order' in data and  data['PO_Order'] != "") or (type == 'Current'):
+            sp[collection_name].insert_one(data)
+        else:
+            return make_response({"ERROR":"If Sale type, PO order missing"})
+
+        if count+1 == sp[collection_name].count_documents({"Type":type}):
+            #Update the dropdown
+
+            return make_response({"message":"Sales Record Added"}, 200) 
+        else:
+            return make_response({"ERROR":"Sale Record Not Added"}, 500)
+        
+    except Exception as e:
+        return make_response({"ERROR":str(e)}, 500)
+    
+
+def editData(data, year, type):
+    try:
+        type = type.capitalize()
+        data = data[type]
+        result = list(sp.list_collection_names())
+        # print(result)
+        collection_name = ""
+        for c in result:
+            if c.startswith("Year") and c.endswith("Data"):
+                c = c.replace("Year","")
+                c = c.replace("Data","")
+                # years.append(int(c))
+                if int(c) == year:
+                    collection_name = f"Year{c}Data"
+                    # print(collection_name)
+                    break
+
+        if collection_name == "":
+            return make_response({"ERROR":"No data for this year error"}, 404)
+
+        try:
+            _id = ObjectId(data['_id'])
+        except:
+            return make_response({"ERROR":"Wrong _id"}, 404)
+        data.pop("_id",None)
+        data.pop("Type",None)
+        # print(data)
+        data_obj = {
+            "$set":data
+        }
+        if(sp[collection_name].count_documents({"_id":_id},limit = 1) == 1):
+            sp[collection_name].update_one({"_id":_id}, data_obj) 
+            return make_response({"message":"Data Edited"}, 201)
+        else:
+            return make_response({"message":"No record Found"},202)
+    except Exception as e:
+        return make_response({"ERROR in dbConnection":str(e)}, 500)
+
+
+def deleteData(data, year, type):
+    try:
+        type = type.capitalize()
+        data = data[type]
+        result = list(sp.list_collection_names())
+        # print(result)
+        collection_name = ""
+        for c in result:
+            if c.startswith("Year") and c.endswith("Data"):
+                c = c.replace("Year","")
+                c = c.replace("Data","")
+                # years.append(int(c))
+                if int(c) == year:
+                    collection_name = f"Year{c}Data"
+                    # print(collection_name)
+                    break
+
+        if collection_name == "":
+            return make_response({"ERROR":"No data for this year error"}, 404)
+
+        try:
+            _id = ObjectId(data['_id'])
+        except:
+            return make_response({"ERROR":"Wrong _id"}, 404)
+        
+        result = sp[collection_name].delete_one({'_id':_id})
+        # print(result)
+        if result.deleted_count > 0:
+            return make_response({"message":"Sale Record Deleted"}, 200)
+        else:
+            return make_response({"ERROR":"No Sale Record Match SaleNumber"}, 404)
+    except Exception as e:
+        return make_response({"ERROR in dbConnection":str(e)}, 500)
+
+
+def transferCurrentToSale(data, year):
+    try:
+        # old_type = "Current"
+        new_type = "Sale" 
+        data = data[new_type]
+        if 'PO_Order' not in data or data['PO_Order'] == "":
+            return make_response({"ERROR":"No PO_Order, can't transfer to Sale"}, 500)
+        result = list(sp.list_collection_names())
+        # print(result)
+        collection_name = ""
+        for c in result:
+            if c.startswith("Year") and c.endswith("Data"):
+                c = c.replace("Year","")
+                c = c.replace("Data","")
+                # years.append(int(c))
+                if int(c) == year:
+                    collection_name = f"Year{c}Data"
+                    # print(collection_name)
+                    break
+
+        if collection_name == "":
+            return make_response({"ERROR":"No data for this year error"}, 404)
+    
+        try:
+            _id = ObjectId(data['_id'])
+        except:
+            return make_response({"ERROR":"Wrong _id"}, 404)
+        
+        
+        
+        data.pop("_id",None)
+        data.pop("Type",None)
+
+        #empty the exisiting document
+        sp[collection_name].update_one({"_id":_id},{"$set":{}})
+
+        #add the new information on same _id
+        data_obj={}
+
+        data_obj['Type'] = new_type
+        data['Customer'] = data['Customer']
+        data['TypeOfProject'] = data['TypeOfProject']
+        data['Channel'] = data['Channel']
+        data['Reseller'] = data['Reseller']
+        data['EC_PointOfContact'] = data['EC_PointOfContact']
+        data['DateSold'] = data['DateSold']
+        data['Quarter'] = int(data['Quarter'])
+        data['Year'] = int(data['Year'])    
+        data['Stage'] = data['Stage']
+        data['ProjectSize'] = data['ProjectSize']
+        data['InvoiceIssueDate'] = data['InvoiceIssueDate']
+        data['PaymentTerms'] = int(data['PaymentTerms'])
+        data['DelinquentTerms'] = int(data['DelinquentTerms'])
+        data['PaymentStatus'] = data['PaymentStatus']
+        data['PaymentStatus'] = data['PaymentStatus']
+        data['PO_Order'] = data['PO_Order']
+        data['NotesOnFollow'] = data['NotesOnFollow']
+
+        if(sp[collection_name].count_documents({"_id":_id},limit = 1) == 1):
+            sp[collection_name].update_one({"_id":_id}, {"$set":data_obj}) 
+            return make_response({"message":"Data Updated"}, 201)
+        else:
+            return make_response({"message":"No record Found"},202)
+
+    except Exception as e:
+        return make_response({"ERROR in dbConnection":str(e)}, 500)
+
+
+def calculateSales(year, type, data):
+    try:
+        # collection_name = f"Year{year}Data"
+        numeric_values = []
+        for val in data:
+            val = val['ProjectSize']
+            val = val.replace(',','')
+            val = val.strip()
+            if val!=' ' and val.isnumeric() and val!="":
+                numeric_values.append(float(val))
+            # print(numeric_values)
+        if type == 'Current':
+            current_total_pipeline = sum(numeric_values)
+            # print(type)
+            # f"{result['Current_Year_Total']:,}"
+            return f"{round(current_total_pipeline,2):,}"
+        elif type == 'Sale':
+            current_total_pipeline = sum(numeric_values)
+            prior_total_pipeline = 0
+            target_total = 0
+            goal_achievement = 0
+            result = list(sp.list_collection_names())
+        # print(result)
+            prior_collection_name = ""
+            for c in result:
+                if c.startswith("Year") and c.endswith("Data"):
+                    c = c.replace("Year","")
+                    c = c.replace("Data","")
+                    # years.append(int(c))
+                    if int(c) == year-1:
+                        prior_collection_name = f"Year{c}Data"
+                        # print(collection_name)
+                        break
+            if prior_collection_name == "":
+                prior_total_pipeline = 0
+            else:
+                prior_data = list(sp[prior_collection_name].find({"Type":type},{'ProjectSize':1,"_id":0}))
+                prior_numeric_values=[]
+                for prior_val in prior_data:
+                    prior_val = prior_val['ProjectSize']
+                    prior_val = prior_val.replace(',','')
+                    prior_val = prior_val.strip()
+                    if prior_val!=' ' and prior_val.isnumeric() and prior_val!="":
+                        prior_numeric_values.append(float(prior_val))
+                    # print(prior_data)
+                prior_total_pipeline = sum(prior_numeric_values)
+            # print(type)
+            target_total = round(+prior_total_pipeline*1.3,2)
+            goal_achievement = round(+current_total_pipeline - target_total,2)
+            goal_achievement_message=""
+            if goal_achievement > 0:
+                goal_achievement_message = "ADDITIONAL EMPLOYEE BONUS ACHIEVED!"
+            else:
+                goal_achievement = abs(goal_achievement)
+            data_obj={}
+            data_obj['Current_Year_Total'] = f"{current_total_pipeline:,}"
+            data_obj['Prior_Year_Total'] = f"{prior_total_pipeline:,}"
+            data_obj['Current_Year_Target_Goal'] = f"{target_total:,}"
+            data_obj['Goal_Achievement'] = f"{goal_achievement:,}"
+            data_obj['Goal_Achievement_Message'] = goal_achievement_message
+
+            # sp.CalculationData.update_one({'Year':year},{"$set":{"Data":data_obj}})
+            # print(data_obj)
+        return data_obj
+    except Exception as e:
+        return str(e)
+
+
+
+
+#--------------------------------------------------------------------------------
 def getAllYears():
     try:
         result = list(salespipeline.list_collection_names())

@@ -31,12 +31,12 @@ def get_document(id):
     
     return result
 
-@contract_renewal.route("/dashboard/contract/add", methods=['POST'])
+@contract_renewal.route("/dashboard/contract/add", methods=['GET','PUT'])
 @auth.token_auth("/dashboard/contract/add")
 def add_contract_details():
     try:       
         
-        if request.method == 'POST':
+        if request.method == 'PUT':
             id = tokenAuth.token_decode(request.headers.get('Authorization'))['payload']['id']
             
             result= add_contractdetails()
@@ -75,11 +75,11 @@ def deleteContractRenewal():
     
 #in edit json body must have _id
 #account name, certificate details, point of contact all are compulsory fields
-@contract_renewal.route("/dashboard/contract/edit", methods=['GET', 'PUT'])
+@contract_renewal.route("/dashboard/contract/edit", methods=['GET', 'POST'])
 @auth.token_auth("/dashboard/contract/edit")
 def edit_subscription_data():
     try:
-        if request.method == 'PUT':
+        if request.method == 'POST':
             # Get JSON data from the request body
             json_data = request.json
 

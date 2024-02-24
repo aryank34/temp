@@ -51,7 +51,7 @@ def get_timesheets_for_manager(client, manager_id, status=None):
                             {"$project": {"managerSheetID": "$managerSheets._id",
                                         "Last Update Date": "$managerSheetsInstances.lastUpdateDate",
                                         "Sheet Version": "$managerSheetsInstances.version",
-                                        "Project": "$managerSheets.projectID",
+                                        "Project": "$assignGroup.projectID",
                                         "Start Date": "$managerSheets.startDate",
                                         "End Date": "$managerSheets.endDate",
                                         "Status": "$managerSheets.status",
@@ -290,11 +290,14 @@ def store_data(data,manager_id,client):
         action = data["action"]
         # if action is not "Draft" or "Save", throw error with message: "Illegal Action for timesheet"
         if action not in ["Draft", "Save"]:
-            return make_response(jsonify({"error": "Illegal Action for timesheet"}), 400)
+            return make_response(jsonify({"error": "Illegal Action for timesheet. Action must be 'Save' or 'Draft'"}), 400)
         status=""
+        success_message=""
         if action == "Draft":
             status = "Draft"
+            success_message = {"message": "Timesheet saved to Draft successfully"}
         elif action == "Save":
+            success_message = {"message": "Timesheet assigned successfully"}
             currentDate = datetime.now()
             if (startDate-currentDate<=timedelta(1)):
                 status = "Active"
@@ -331,8 +334,7 @@ def store_data(data,manager_id,client):
             client.TimesheetDB.TimesheetRecords.update_one({"managerID": ObjectId(manager_id)},
                                                         {"$push": {"managerSheetsInstances": manager_sheets_instance.to_dict()}}
         )
-
-        return make_response(jsonify({"message": "Timesheet Creation Successful"}), 200)
+        return make_response(jsonify(success_message), 200)
     except Exception as e:
         # If an error occurs, return the error response
         return make_response(jsonify({"error": str(e)}), 500)
@@ -652,28 +654,28 @@ def delete_timesheet(manager_uuid, timesheet):
                     timesheet['managerSheetID'] = ObjectId(timesheet['managerSheetID'])
                     verify = verify_attribute(collection=client.TimesheetDB.ManagerSheets, key="_id",attr_value=timesheet['managerSheetID'])
                     if not verify:
-                        return make_response(jsonify({"error": "timesheet 'managerSheetID' data is incorrect"}), 400)
+                        return make_response(jsonify({"error": "'managerSheetID' data is incorrect"}), 400)
                     # check if TImesheetRecords has a document where for a specific manager_id, there exists a managerSheetID at managerSheetObject in managerSheetsInstances
                     verify = client.TimesheetDB.TimesheetRecords.find_one({'managerID': ObjectId(manager_id), 'managerSheetsInstances.managerSheetsObjects': ObjectId(timesheet['managerSheetID'])})
                     if not verify:
-                      return make_response(jsonify({"error": "manager doesnt has access to this timesheet"}), 400)
+                      return make_response(jsonify({"error": "Manager doesnt has access to this timesheet"}), 400)
                         
                 else:
-                    return make_response(jsonify({"error": "timesheet 'managerSheetID' data is required"}), 400)
+                    return make_response(jsonify({"error": "'managerSheetID' data is required"}), 400)
 
             else:
-                return make_response(jsonify({"error": "timesheet data is required"}), 400)
+                return make_response(jsonify({"error": "Timesheet data is required"}), 400)
 
             timesheets = client.TimesheetDB.ManagerSheets.find_one({"_id": ObjectId(timesheet['managerSheetID'])})
             if not timesheets:
-                return make_response(jsonify({"error": "No timesheet found"}), 400)
+                return make_response(jsonify({"error": "No timesheet found to delete"}), 400)
             # only draft and upcoming can be deleted
             if timesheets['status'] == "Active":
-                return make_response(jsonify({"error": "timesheet is active, cannot be deleted"}), 400)
+                return make_response(jsonify({"error": "Timesheet is Active, cannot be deleted"}), 400)
             elif timesheets['status'] == "Submitted":
-                return make_response(jsonify({"error": "timesheet is submitted, cannot be deleted"}), 400)
+                return make_response(jsonify({"error": "Timesheet is Submitted, cannot be deleted"}), 400)
             elif timesheets['status'] == "Review":
-                return make_response(jsonify({"error": "timesheet is in review, cannot be deleted"}), 400)
+                return make_response(jsonify({"error": "Timesheet is in Review, cannot be deleted"}), 400)
             
             # delete the managerSheet from the ManagerSheets Collection and the managerSheetsInstances from the TimesheetRecords Collection
             client.TimesheetDB.ManagerSheets.delete_one({"_id": timesheet['managerSheetID']})
@@ -713,16 +715,6 @@ def create_timesheet(manager_uuid, timesheet):
 
             if timesheet is not None:
 
-                # check if assignGroupID is valid
-                if timesheet['assignGroupID'] is not None:
-                    timesheet['assignGroupID'] = ObjectId(timesheet['assignGroupID'])
-                    verify = verify_attribute(collection=client.TimesheetDB.AssignmentGroup, key="_id",attr_value=timesheet['assignGroupID'])
-                    if not verify.status_code == 200:
-                        # If the connection fails, return the error response
-                        return verify
-                else:
-                    return make_response(jsonify({"error": "timesheet 'assignGroupID' data is required"}), 400)
-
                 # check if projectID is valid
                 if 'projectID' in timesheet:
                     timesheet['projectID'] = ObjectId(timesheet['projectID'])
@@ -731,7 +723,22 @@ def create_timesheet(manager_uuid, timesheet):
                         # If the connection fails, return the error response
                         return verify
                 else:
-                    return make_response(jsonify({"error": "timesheet 'projectID' data is required"}), 400)
+                    return make_response(jsonify({"error": "Project is required to create Timesheet"}), 400)
+                
+                # check if assignGroupID is valid
+                if timesheet['assignGroupID'] is not None:
+                    timesheet['assignGroupID'] = ObjectId(timesheet['assignGroupID'])
+                    verify = verify_attribute(collection=client.TimesheetDB.AssignmentGroup, key="_id",attr_value=timesheet['assignGroupID'])
+                    if not verify.status_code == 200:
+                        # If the connection fails, return the error response
+                        return verify
+                else:
+                    return make_response(jsonify({"error": "Assignee Group is required to create Timesheet"}), 400)
+
+                # check if assignment group is part of project
+                verify = verify_attribute(collection=client.TimesheetDB.AssignmentGroup, key="projectID",attr_value=timesheet['projectID'])
+                if not verify:
+                    return make_response(jsonify({"error": "Assignee Group is not associated with the Project"}), 400)
                     
                 # check if startDate is greater than endDate format:2024-02-05 18:30:00
                 if 'startDate' in timesheet and 'endDate' in timesheet:
@@ -739,12 +746,12 @@ def create_timesheet(manager_uuid, timesheet):
                     end = datetime.strptime(timesheet['endDate'], "%Y-%m-%d %H:%M:%S")
                     curr = datetime.now()
                     if (start >= end) or (start<=curr) or (end<=curr):
-                        return make_response(jsonify({"error": "timesheet duration data is incorrect"}), 400)
+                        return make_response(jsonify({"error": "Timesheet duration is incorrect"}), 400)
                 else:
-                    return make_response(jsonify({"error": "timesheet duration data is required"}), 400)
+                    return make_response(jsonify({"error": "Timesheet start/end date is required"}), 400)
 
             else:
-                return make_response(jsonify({"error": "timesheet data is required"}), 400)
+                return make_response(jsonify({"error": "Provide necessary details to create Timesheet"}), 400)
 
 
             
