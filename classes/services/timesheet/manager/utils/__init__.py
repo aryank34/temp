@@ -856,153 +856,67 @@ def get_workData(client, manager_id):
     try: 
         # Use aggregation pipeline to match the employee ID and project the required fields
         project_pipeline = [
-                {"$lookup": {"from": "Projects","localField": "_id","foreignField": "managerID","as": "projects"}},
-                    {"$match": {"projects": {"$ne": []}}},
-                {"$lookup": {"from": "AssignmentGroup","localField": "projects._id","foreignField": "projectID","as": "Assignee"}},
-                {"$lookup": {"from": "Assignments","localField": "Assignee.assignmentInstances.assignmentID","foreignField": "_id","as": "assignments"}},
-                {"$lookup": {"from": "Members","localField": "assignments.assignedTo","foreignField": "_id","as": "members"}},
-                {"$lookup": {"from": "Tasks","localField": "assignments.taskID","foreignField": "_id","as": "tasks"}},
-                {"$lookup": {"from": "Teams","localField": "projects._id","foreignField": "projectID","as": "teams"}},
-                {"$lookup": {"from": "Members","localField": "teams._id","foreignField": "teamID","as": "teamMembers"}},
-                {"$project": {"teamID": 0,"role": 0,"employeeDataID": 0,"name": 0,"projects.managerID": 0,"Assignee.assignedBy": 0,
-                              "Assignee.assignmentInstances.assignDate": 0,"assignments.projectID": 0,"assignments.assignedBy": 0,
-                              "members.employeeDataID": 0,"teamMembers.employeeDataID": 0,"members.teamID": 0,"tasks.projectID": 0,
-                              "tasks.deadline": 0,"tasks.joblist": 0,"tasks.completionStatus": 0}},
-                {"$project": {"_id": 1,"projects": 1,"assignments": 1,"members": 1,"tasks": 1,"teams": 1,"teamMembers":1,
-                              "Assignee": {"$map": {"input": "$Assignee",
-                                                            "as": "group",
-                                                            "in": {"_id": "$$group._id",
-                                                                   "name": "$$group.name",
-                                                                   "assignmentInstances": {
-                                                                       "$map": {"input": "$$group.assignmentInstances",
-                                                                       "as": "instance",
-                                                                       "in": "$$instance.assignmentID"}},
-                                                                    "projectID": "$$group.projectID"}}}}},
-                {"$addFields": {
-                    "projects": {
-                        "$map": {
-                        "input": "$projects",
-                        "as": "project",
-                        "in": {
-                            "$mergeObjects": [
-                            "$$project",
-                            {
-                                "Assignee": {
-                                "$map": {
-                                    "input": {
-                                    "$filter": {
-                                        "input": "$Assignee",
-                                        "as": "group",
-                                        "cond": {"$eq": ["$$group.projectID", "$$project._id"]}
-                                    }
-                                    },
-                                    "as": "group",
-                                    "in": {
-                                    "$mergeObjects": [
-                                        "$$group",
-                                        {
-                                        "assignment": {
-                                            "$map": {
-                                            "input": {
-                                                "$filter": {
-                                                "input": "$assignments",
-                                                "as": "assignment",
-                                                "cond": {"$in": ["$$assignment._id", "$$group.assignmentInstances"]}
-                                                }
-                                            },
-                                            "as": "assignment",
-                                            "in": {
-                                                "$mergeObjects": [
-                                                "$$assignment",
-                                                {
-                                                    "tasks": {
-                                                    "$map": {
-                                                        "input": {
-                                                        "$filter": {
-                                                            "input": "$tasks",
-                                                            "as": "task",
-                                                            "cond": {"$eq": ["$$assignment.taskID", "$$task._id"]}
-                                                        }
-                                                        },
-                                                        "as": "task",
-                                                        "in": "$$task"
-                                                    }
-                                                    },
-                                                    "assignedTo": {
-                                                    "$map": {
-                                                        "input": "$$assignment.assignedTo",
-                                                        "as": "assignedToId",
-                                                        "in": {
-                                                        "$let": {
-                                                            "vars": {
-                                                            "member": {
-                                                                "$filter": {
-                                                                "input": "$members",
-                                                                "as": "member",
-                                                                "cond": {"$eq": ["$$member._id", "$$assignedToId"]}
-                                                                }
-                                                            }
-                                                            },
-                                                            "in": {"$arrayElemAt": ["$$member", 0]}
-                                                        }
-                                                        }
-                                                    }
-                                                    }
-                                                }
-                                                ]
-                                            }
-                                            }
-                                        }
-                                        }
-                                    ]
-                                    }
-                                }
-                                },
-                                "teams": {
-                                "$map": {
-                                    "input": {
-                                    "$filter": {
-                                        "input": "$teams",
-                                        "as": "team",
-                                        "cond": {"$eq": ["$$team.projectID", "$$project._id"]}
-                                    }
-                                    },
-                                    "as": "team",
-                                    "in": {
-                                    "$mergeObjects": [
-                                        "$$team",
-                                        {
-
-                                        "teamLead": {
-                                            "$filter": {
-                                            "input": "$teamMembers",
-                                            "as": "lead",
-                                            "cond": {"$eq": ["$$lead._id", "$$team.leadID"]}
-                                            }
-                                        },
-                                        "teamMembers": {
-                                            "$filter": {
-                                            "input": "$teamMembers",
-                                            "as": "teamMember",
-                                            "cond": {"$eq": ["$$teamMember.teamID", "$$team._id"]}
-                                            }
-                                        }
-                                        }
-                                    ]
-                                    }
-                                }
-                                }
-                            }
-                            ]
-                        }
-                        }
+  {"$lookup": {"from": "Projects","localField": "_id","foreignField": "managerID","as": "Projects"}},
+      {"$match": {"Projects": {"$ne": []}}},
+  {"$lookup": {"from": "AssignmentGroup","localField": "Projects._id","foreignField": "projectID","as": "Assignee"}},
+  {"$project": {
+                "role": 0,
+                "employeeDataID": 0,
+                "name": 0,
+                "Projects.managerID": 0,
+                "Projects.status": 0,
+                "Assignee.assignedBy": 0,
+                "Assignee.assignmentInstances.assignDate": 0,
+                }},
+  {"$project": {
+              "_id": 1,
+                "Projects": 1,
+                "Assignee": {"$map": {"input": "$Assignee",
+                                              "as": "group",
+                                              "in": {"_id": "$$group._id",
+                                                     "name": "$$group.name",
+                                                     "assignmentInstances": {
+                                                         "$map": {"input": "$$group.assignmentInstances",
+                                                         "as": "instance",
+                                                         "in": "$$instance.assignmentID"}},
+                                                      "projectID": "$$group.projectID"
+                                                                  }}}}},
+  {"$addFields": {
+    "Projects": {
+      "$map": {
+        "input": "$Projects",
+        "as": "project",
+        "in": {
+          "$mergeObjects": [
+            "$$project",
+            {
+              "Assignee": {
+                "$map": {
+                  "input": {
+                    "$filter": {
+                      "input": "$Assignee",
+                      "as": "group",
+                      "cond": {"$eq": ["$$group.projectID", "$$project._id"]}
                     }
-                    }
-                },
-                {"$project": {"_id": 0,"managerID": "$_id","Projects": "$projects",}},
-                {"$project": {"Projects.teams.projectID": 0,"Projects.teams.leadID": 0,"Projects.teams.teamLead.teamID": 0,"Projects.teams.teamLead.role": 0,"Projects.teams.teamMembers.teamID": 0,
-                              "Projects.Assignee.assignmentInstances": 0,"Projects.Assignee.projectID": 0,"Projects.Assignee.assignment.taskID": 0}},
+                  },
+                  "as": "group",
+                  "in": "$$group"
+                }
+              },
+            }
+          ]
+        }
+      }
+    }
+  }
+},
+{"$project": {"Projects.Assignee.assignmentInstances": 0,"Projects.Assignee.projectID": 0}},
+{"$project": {"_id": 0,
+              "managerID": "$_id",
+              "Projects._id": 1,"Projects.name": 1,
+              "Projects.Assignee._id": 1,"Projects.Assignee.name": 1}},
                 {"$match": {"managerID": ObjectId(manager_id)}},
+                {"$project": {"managerID": 0}}
                 ]
 
         manager_data = list(client.WorkBaseDB.Members.aggregate(project_pipeline))
