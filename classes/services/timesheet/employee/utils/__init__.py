@@ -23,8 +23,8 @@ def get_timesheets_for_employee(client, employee_id):
         timesheet_pipeline = [ 
                                 {"$match": {"employeeID": ObjectId(employee_id)}},
                                 {"$project": {"Manager":  "$managerID",
-                                                "StartDate":  "$startDate",
-                                                "EndDate":    "$endDate",
+                                                "startDate":  "$startDate",
+                                                "endDate":    "$endDate",
                                                 "employeeSheetInstances":   "$employeeSheetInstances",
                                                 "Status":  "$status",
                                                 "ReturnedMessage": "$returnMessage"}}
@@ -95,7 +95,7 @@ def get_timesheets_for_employee(client, employee_id):
                             timesheets[i]['employeeSheetInstances'][j]['employeeSheetObject']['Task'] = task_item
 
         # sort the sheets by their startDate
-        timesheets = sorted(timesheets, key=lambda x: x['Start Date'])
+        timesheets = sorted(timesheets, key=lambda x: x['startDate'])
 
         # Convert the employee_sheets cursor object to a JSON object
         timesheets_json = json.dumps(timesheets, default=str)
