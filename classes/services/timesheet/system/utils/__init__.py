@@ -33,8 +33,8 @@ current_dir = os.path.dirname(os.path.abspath(__file__))
 parent_dir = os.path.dirname(current_dir)
 # Join the parent directory with the file name
 kill_file_path = os.path.join(parent_dir, 'kill_timesheet_sync.txt')
-log_file_path = os.path.join(parent_dir, 'logfile.log', format='%(asctime)s - %(levelname)s - %(message)s')
-logging.basicConfig(filename=log_file_path, level=logging.INFO)  # Set the logging configuration    
+log_file_path = os.path.join(parent_dir, 'logfile.log')
+logging.basicConfig(filename=log_file_path, filemode='a', level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')  # Set the logging configuration    
 
 # -------------------------------------------------------------------------------------
 # Define a class for managing sheet instances
@@ -158,13 +158,14 @@ def dbConnectCheck():
     It returns the MongoClient instance if the connection is successful, or an error response if the connection fails.
     """
     try:
+        logging.info("[INIT] --- Connecting to MongoDB")
         uri = mongo_host  # Get the MongoDB host URI
         client = MongoClient(uri, server_api=ServerApi('1'), UuidRepresentation="standard")  # Create a new MongoDB client using the host URI, server API version, and UUID representation
-        logging.info('Connection to MongoDB server successful.')
+        logging.info('[OK] --- Connection to MongoDB server successful.')
         return client  # Return the client if the connection is successful
 
     except Exception as e:
-        logging.error('Failed to connect to MongoDB server: %s', e)
+        logging.error("[ERROR] --- Failed to connect to MongoDB server: ",type(e).__name__, ":", str(e))
         return make_response(jsonify({"error": str(e)}), 500)  # Return an error response if the connection fails
 
 # Function to get the date of the next Monday at midnight    
@@ -192,6 +193,7 @@ def get_next_week():
 # Function to update the status of upcoming timesheets to active
 def update_status_timesheets():
     try:
+        logging.info("[INIT] --- Updating Status of Upcoming Timesheets...")  # Log the start of the status update process
         client = dbConnectCheck()  # Check the database connection
         if isinstance(client, MongoClient):  # If the connection is successful
             manager_sheets_collection = client.TimesheetDB.ManagerSheets  # Get the ManagerSheets collection
@@ -214,18 +216,18 @@ def update_status_timesheets():
             for document in documents_draft:
                 manager_sheets_collection.update_one({"_id": document["_id"]}, {"$set": {"status": "Draft"}})
             
-            logging.info("Status Update Completed")  # Log a success message
+            logging.info("[OK] --- Status Update Completed.")  # Log a success message
         else:
             # If the connection fails, log an error message
-            logging.error("Failed to connect to the MongoDB server while updating status of timesheets")
+            logging.error("[ERROR] --- Failed to connect to the MongoDB server while updating status of timesheets.")
     except Exception as e:
         # If an error occurs, log the error message
-        logging.error("Error updating status of timesheets: %s", e)
+        logging.error("Error updating status of timesheets: ",type(e).__name__, ":", str(e))
 
 # Function to store employee sheets in the database
 def store_employee_sheets(data, client):
     try:
-        logging.info("Storing employee sheets in the database")
+        logging.info("Storing employee sheets in the database...")
         
         # Create WorkDay object for each day of the week
         workDay = {
@@ -237,44 +239,40 @@ def store_employee_sheets(data, client):
             "sat": WorkDay(data["workDay"]["sat"]["work"]),
             "sun": WorkDay(data["workDay"]["sun"]["work"]),
         }
-        logging.info("Created WorkDay object for each day of the week")
         
         # Extract projectID, taskID, and description from the data
         projectID = ObjectId(data["Project"]["projectID"])
         taskID = ObjectId(data["Task"]["taskID"])
         description = data["description"]
-        logging.info("Extracted projectID, taskID, and description from the data")
-        
+
         # Create an EmployeeSheetObject with the extracted data and the created WorkDay object
         employeeSheetObject = EmployeeSheetObject(projectID=projectID, taskID=taskID, workDay=workDay, description=description)
-        logging.info("Created EmployeeSheetObject")
         
         # Extract version from the data
         version = data["version"]
-        logging.info("Extracted version from the data")
         
         # Create an EmployeeSheetInstance with the extracted version and the created EmployeeSheetObject
         employeeSheetInstance = EmployeeSheetInstance(version=version, employeeSheetObject=employeeSheetObject)
-        logging.info("Created EmployeeSheetInstance")
-        
+
         # Extract managerSheetID, employeeID, managerID, startDate, and endDate from the data
         managerSheetID = ObjectId(data["managerSheetID"])
         employeeID = ObjectId(data["Employee"]["employeeID"])
         managerID = ObjectId(data["Manager"]["managerID"])
         startDate = data["startDate"]
         endDate = data["endDate"]
-        logging.info("Extracted managerSheetID, employeeID, managerID, startDate, and endDate from the data")
         
         # Create an EmployeeSheet with the extracted data and the created EmployeeSheetInstance
         employeeSheet = EmployeeSheet(managerSheetID=managerSheetID, employeeID=employeeID, managerID=managerID, startDate=startDate, endDate=endDate, employeeSheetInstances=[employeeSheetInstance])
-        logging.info("Created EmployeeSheet")
+        logging.info("EmployeeSheet Instance Generated")
         
+        msg_str = ""
+
         # Check if an EmployeeSheet with the same managerSheetID and employeeID already exists in the database
         if (client.TimesheetDB.EmployeeSheets.find_one({"managerSheetID": employeeSheet.managerSheetID, "employeeID": employeeSheet.employeeID}) is None):
             # If not, insert the created EmployeeSheet into the database and log a success message
             result = client.TimesheetDB.EmployeeSheets.insert_one(employeeSheet.to_dict())
             msg_str = "Employee Sheet Created" + ": EmployeeSheetID :" + str(result.inserted_id)
-            logging.info("Inserted the created EmployeeSheet into the database")
+            # logging.info("Inserted the created EmployeeSheet into the database with the created EmployeeSheet Instance")
         else:
             # If an EmployeeSheet with the same managerSheetID and employeeID already exists, check if an EmployeeSheetInstance with the same version already exists
             if (client.TimesheetDB.EmployeeSheets.find_one({"employeeSheetInstances.version": version}) is None):
@@ -282,21 +280,21 @@ def store_employee_sheets(data, client):
                 result = client.TimesheetDB.EmployeeSheets.update_one({"employeeID": employeeSheet.employeeID, "managerSheetID": employeeSheet.managerSheetID},
                                                             {"$push": {"employeeSheetInstances": employeeSheetInstance.to_dict()}})
                 msg_str = "Employee Sheet updated" + ": EmployeeSheetID :" + str(result.inserted_id)
-                logging.info("Updated the existing EmployeeSheet with the created EmployeeSheetInstance")
+                # logging.info("Updated the existing EmployeeSheet with the created EmployeeSheet Instance")
             else:
                 # If an EmployeeSheetInstance with the same version already exists, log a message indicating that the EmployeeSheet already exists
                 msg_str = "Employee Sheet already exists"
-                logging.info("Employee Sheet already exists")
+                # logging.info("EmployeeSheet Instance already exists")
         
         logging.info(msg_str)  # Log the message
-        logging.info("Completed storing employee sheets in the database")
     except Exception as e:
         # If an error occurs, log an error message
-        logging.error("Error creating Timesheet Records: %s", e)
+        logging.error("[ERROR] --- Error creating Timesheet Records: ",type(e).__name__, ":", str(e))
         
 # Function to distribute active timesheets
 def distribute_active_timesheets():
     try:
+        logging.info("[INIT] --- Timesheets Distribution Initiated...")
         client = dbConnectCheck()  # Check the database connection
         if isinstance(client, MongoClient):  # If the connection is successful
             # Define the pipeline for the aggregation operation on the TimesheetRecords collection
@@ -382,38 +380,55 @@ def distribute_active_timesheets():
             for i in range(len(result_documents)):
                 subset_dict = {key: result_documents[i][key] for key in ['managerSheetID', 'startDate', 'endDate', 'status', 'version', 'workDay', 'description', 'Project', 'Task', 'Employee', 'Manager'] if key in result_documents[i]}
                 store_employee_sheets(subset_dict, client)
-
-            print("Timesheets distributed")  # Print a success message
+            logging.info("[OK] --- Completed updating employee sheets in the database")
+            logging.info("[OK] --- Timesheets Distribution Successful")  # Log a success message
         else:
-            # If the connection fails, print an error message
-            print("Failed to connect to the MongoDB server while distributing timesheets")
+            # If the connection fails, log an error message
+            logging.error("[ERROR] --- Failed to connect to the MongoDB server while distributing timesheets")
     except Exception as e:
-        # If an error occurs, print an error message
-        print("Error distributing timesheets: ", e)
+        # If an error occurs, log an error message
+        logging.error("[ERROR] --- Error distributing timesheets: ",type(e).__name__, ":", str(e))
 
 # Function to submit timesheets for review
 def submit_timesheet_for_review(week_check):
     try:
+        logging.info("[INIT] --- Timesheets Submission Process Initialed...")  # Log a success message
+
         client = dbConnectCheck()  # Check the database connection
+        logging.info("Collecting timesheets for submission...")  # Log the start of the process
         if isinstance(client, MongoClient):  # If the connection is successful
             if week_check:  # If week_check is True
                 timesheets = get_weekend_timesheets()  # Get the timesheets for the weekend
             else:  # If week_check is False
                 timesheets = get_default_timesheets()  # Get the default timesheets
+            logging.info("[OK] --- Timesheets collected for submission")  # Log a success message
+            # Get the number of timesheets collected for submission
+            sheets_count = len(timesheets) # Get the number of timesheets collected
+            logging.info(f"Number of timesheets collected for submission: {sheets_count}")  # Log the number of timesheets collected for submission
+            logging.info("Attempting submission...")  # Log the start of the process
+            success_count = 0  # Variable to keep track of successful thread executions
             with ThreadPoolExecutor() as executor:  # Create a ThreadPoolExecutor
                 # Use the executor to submit the timesheets for review in parallel
-                executor.map(submit_timesheet_for_review_thread, [(timesheet) for timesheet in timesheets])
-            print("Timesheets submitted for Review")  # Print a success message
+                results = executor.map(submit_timesheet_for_review_thread, [(timesheet) for timesheet in timesheets])
+            for result in results:
+                if result is not None:
+                    success_count += 1
+            if success_count == sheets_count:
+                logging.info("[OK] --- All timesheets submitted for Review")  # Log a success message
+            else:
+                # print the number of successfuly submitted sheets out of total sheets
+                logging.info(f"[INFO] Number of timesheets submitted for review: {success_count} out of {sheets_count}")
         else:
-            # If the connection fails, print an error message
-            print("Failed to connect to the MongoDB server while timesheet submission")
+            # If the connection fails, log an error message
+            logging.error("[ERROR] --- Failed to connect to the MongoDB server while timesheet submission")
     except Exception as e:
-        # If an error occurs, print an error message
-        print("Error submitting timesheets for review: ", e)
+        # If an error occurs, log an error message
+        logging.error("[ERROR] --- Error submitting timesheets for review: ",type(e).__name__, ":", str(e))
 
 # Function to submit timesheets for review at a thread
 def submit_timesheet_for_review_thread(timesheet):
     try:
+        logging.info("Running SubmitTimesheetForReviewThread...")  # Log the start of the thread
         client = dbConnectCheck()  # Check the database connection
         if isinstance(client, MongoClient):  # If the connection is successful
             last_instance = timesheet["employeeSheetInstances"][-1]  # Get the last instance of the timesheet
@@ -437,12 +452,17 @@ def submit_timesheet_for_review_thread(timesheet):
 
             # Update the status of the EmployeeSheet document to "Reviewing" and set the managerSheetID to the ID of the new ManagerSheetReview document
             client.TimesheetDB.EmployeeSheets.update_one({"_id": timesheet["_id"]}, {"$set": {"status": "Reviewing", "managerSheetID": newManagerSheetReview.inserted_id}})
+
+            logging.info("[OK] --- Submission Successful")  # Log a success message
+            return True
         else:
-            # If the connection fails, print an error message
-            print("Failed to connect to the MongoDB server while timesheet submission at a thread")
+            # If the connection fails, log an error message
+            logging.error("[ERROR] --- Failed to connect to the MongoDB server while timesheet submission at a thread")
+            return None
     except Exception as e:
-        # If an error occurs, print an error message
-        print("Error submitting timesheets for review at a thread: ", e)
+        # If an error occurs, log an error message
+        logging.error("[ERROR] --- Error submitting timesheets for review at a thread: ",type(e).__name__, ":", str(e))
+        return None
 
 # Function to get default timesheets
 def get_default_timesheets():
@@ -456,11 +476,11 @@ def get_default_timesheets():
             )
             return default_timesheets  # Return the found documents
         else:
-            # If the connection fails, print an error message
-            print("Failed to connect to the MongoDB server while getting default timesheets")
+            # If the connection fails, log an error message
+            logging.error("[ERROR] --- Failed to connect to the MongoDB server while getting default timesheets")
     except Exception as e:
-        # If an error occurs, print an error message
-        print("Error getting default timesheets: ", e)
+        # If an error occurs, log an error message
+        logging.error("[ERROR] --- Error getting default timesheets: ",type(e).__name__, ":", str(e))
 
 # Function to get weekend timesheets
 def get_weekend_timesheets():
@@ -475,11 +495,11 @@ def get_weekend_timesheets():
             )
             return weekend_timesheets  # Return the found documents
         else:
-            # If the connection fails, print an error message
-            print("Failed to connect to the MongoDB server while getting weekend timesheets")
+            # If the connection fails, log an error message
+            logging.error("[ERROR] --- Failed to connect to the MongoDB server while getting weekend timesheets")
     except Exception as e:
-        # If an error occurs, print an error message
-        print("Error getting weekend timesheets: ", e)
+        # If an error occurs, log an error message
+        logging.error("[ERROR] --- Error getting weekend timesheets: ",type(e).__name__, ":", str(e))
 
 # Define a class for the scheduler
 class Scheduler:
@@ -488,10 +508,14 @@ class Scheduler:
 
     def start(self):
         try:
+            logging.info('[EXEC] Starting scheduler...')
+            print('Starting scheduler...')
             # Initialize the scheduler
             scheduler = BackgroundScheduler()
             # Add jobs to the scheduler
             # The update_status_timesheets job runs every 15 minutes on Sundays
+            logging.info('[EXEC] Adding Jobs...')
+            print('Adding Jobs...')
             scheduler.add_job(update_status_timesheets, 'cron', day_of_week='sun', hour=0, minute="0/15", timezone='America/New_York', args=[])
             # The distribute_active_timesheets job runs every 15 minutes every day at 15:00 IST
             scheduler.add_job(distribute_active_timesheets, 'cron', day_of_week='*', hour=15, minute="0/15", timezone='Asia/Kolkata', args=[])
@@ -500,21 +524,31 @@ class Scheduler:
             # The submit_timesheet_for_review job runs every 15 minutes on Sundays at 20:00 UTC
             scheduler.add_job(submit_timesheet_for_review, 'cron', day_of_week='sun', hour=20, minute="0/15", timezone='America/New_York', args=[True])
             scheduler.start()  # Start the scheduler
+            logging.info("[OK] --- Scheduler started successfully.")
+            print("Scheduler started successfully.")
         except Exception as e:
             # If an error occurs, print an error message
-            print("Error running the scheduler: ", e)
+            logging.error("[ERROR] --- Error running the scheduler: ",type(e).__name__, ":", str(e))
+            print("Error running the scheduler: ",type(e).__name__, ":", str(e))
 
     def stop(self):
-        # Check if the stop file exists
-        if os.path.exists(kill_file_path):
-            # If the stop file exists, stop the scheduler and remove the stop file
-            print('Stopping scheduler...')
-            os.remove(kill_file_path)
-            self.scheduler.shutdown()
-        else:
-            # If the stop file does not exist, print a message indicating that the job is running
-            print('Running job...')
-
+        try:
+            # Check if the stop file exists
+            if os.path.exists(kill_file_path):
+                # If the stop file exists, stop the scheduler and remove the stop file
+                logging.info('[EXEC] Stopping scheduler...')
+                print('Stopping scheduler...')
+                os.remove(kill_file_path)
+                self.scheduler.shutdown()
+            else:
+                # If the stop file does not exist, print a message indicating that the job is running
+                logging.info('[EXEC] Running job...')
+                print('Running job...')
+        except Exception as e:
+            # If an error occurs, print an error message
+            logging.error("[ERROR] --- Error stopping the scheduler: ",type(e).__name__, ":", str(e))
+            print("Error stopping the scheduler: ",type(e).__name__, ":", str(e))
+            
 # Function to run the scheduler
 def main():
     # Create a Scheduler object
@@ -527,7 +561,6 @@ def main():
     s.stop()
 
 
-# driver code
-if __name__ == "__main__":
-    
-    main()
+# # driver code
+# if __name__ == "__main__":
+#     main()

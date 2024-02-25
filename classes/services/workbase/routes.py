@@ -2,7 +2,7 @@
 from flask import Blueprint, jsonify, make_response, request
 
 # Import custom module
-from .utils import create_tasks, edit_tasks, fetch_projects, create_projects, create_teams
+from .utils import create_new_assignment_group, create_new_task_assignment, create_tasks, edit_tasks, fetch_projects, create_projects, create_teams
 from ..timesheet.utils import userType
 from ..loginAuth.tokenAuth import tokenAuth
 auth = tokenAuth()
@@ -124,10 +124,10 @@ def create_new_assignment():
         # Access the 'timesheet' field, which is a nested JSON object
         task_data = payload.get('task')
 
-        # fetch_tasks_response = create_assignment(uuid, task_data)
+        fetch_tasks_response = create_new_task_assignment(uuid, task_data)
 
         # Return the response from the userType function
-        # return fetch_tasks_response
+        return fetch_tasks_response
 
     except Exception as e:
         # Handle any exceptions and return an error response
@@ -147,10 +147,10 @@ def create_new_assignmentGroup():
         # Access the 'timesheet' field, which is a nested JSON object
         task_data = payload.get('task')
 
-        # fetch_tasks_response = create_assigneeGroup(uuid, task_data)
+        fetch_tasks_response = create_new_assignment_group(uuid, task_data)
 
         # Return the response from the userType function
-        # return fetch_tasks_response
+        return fetch_tasks_response
 
     except Exception as e:
         # Handle any exceptions and return an error response

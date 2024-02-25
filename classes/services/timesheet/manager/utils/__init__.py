@@ -235,7 +235,12 @@ def get_timesheets_for_manager(client, manager_id, status=None):
         if not filtered_timesheets:
             return make_response(jsonify({"message": "No Timesheets here yet"}), 200)
 
-        filtered_timesheets = sorted(filtered_timesheets, key=lambda x: x['startDate'])
+        # sort the sheets by their startDate
+        # if status == "Draft" or status == "Upcoming" or status == "Active":
+        #     startDate = "Start Date"
+        # elif status == "Review":
+        #     startDate = "startDate"
+        filtered_timesheets = sorted(filtered_timesheets, key=lambda x: x["startDate"])
 
         # return make_response(jsonify({"message": "Working in review"}), 200)
         # Convert the manager_sheets cursor object to a JSON object
@@ -920,7 +925,7 @@ def get_workData(client, manager_id):
                 ]
 
         manager_data = list(client.WorkBaseDB.Members.aggregate(project_pipeline))
-        
+
         # Check if manager data is empty
         if not manager_data:
             return make_response(jsonify({"message": "No Data here yet"}), 200)

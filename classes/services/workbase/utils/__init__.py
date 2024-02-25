@@ -389,7 +389,7 @@ def create_new_assignment_group(manager_uuid, assignment_details):
                     return make_response(jsonify({"error": "Assignment Group not found"}), 404)
                 
             # check if manager has a AssignmentGroup for same project
-            assignment_group = client.TimesheetDB.AssignmentGroup.find_one({"assignedBy": ObjectId(account_id), "projectID": ObjectId(projectID)})
+            assignment_group = client.WorkBaseDB.AssignmentGroup.find_one({"assignedBy": ObjectId(account_id), "projectID": ObjectId(projectID)})
             if assignment_group is None:
                 # create the assignment instances
                 assignment_instances = [AssignmentInstance(assignDate=datetime.now(), assignmentGroupID=ObjectId(assignment_group)) for assignment_group in assignment_groups]
@@ -397,6 +397,7 @@ def create_new_assignment_group(manager_uuid, assignment_details):
                 assignment_group = AssignmentGroup(name=name, assignedBy=account_id, projectID=projectID, assignmentInstances=assignment_instances)
                 # Insert the assignment group into the collection
                 client.TimesheetDB.AssignmentGroup.insert_one(assignment_group.to_dict())
+                client.WorkBaseDB.AssignmentGroup.insert_one(assignment_group.to_dict())
             else:
                 # check if any item in assignment_groups list is present at assignmentID of assignmentInstances list
                 for instance in assignment_group['assignmentInstances']:
@@ -409,6 +410,7 @@ def create_new_assignment_group(manager_uuid, assignment_details):
                     assignment_instance = AssignmentInstance(assignDate=datetime.now(), assignmentID=ObjectId(assignment_group))
                     # push this assignment instance to the assignmentInstances list in collection
                     result = client.TimesheetDB.AssignmentGroup.update_one({"_id": ObjectId(assignment_group['_id'])}, {"$push": {"assignmentInstances": assignment_instance}})
+                    result = client.WorkBaseDB.AssignmentGroup.update_one({"_id": ObjectId(assignment_group['_id'])}, {"$push": {"assignmentInstances": assignment_instance}})
                     if result.modified_count == 0:
                         return make_response(jsonify({"error": "Failed to add assignment to AssignmentGroup"}), 500)
             # If the assignment group is successfully created
