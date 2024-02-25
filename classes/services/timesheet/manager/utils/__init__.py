@@ -658,11 +658,11 @@ def edit_timesheet(manager_uuid, timesheet):
                 if not timesheets:
                     return make_response(jsonify({"error": "No timesheet found to edit"}), 400)
                 # only draft and upcoming can be edited to update the status
-                if timesheets['status'] == "Active" and timesheet['status'] != "Active":
+                if timesheets['status'] == "Active" and timesheet['action'] != "Draft":
                     return make_response(jsonify({"error": "Timesheet is Active, status can not be changed"}), 400)
-                elif timesheets['status'] == "Submitted" and timesheet['status'] != "Submitted":
+                elif timesheets['status'] == "Submitted":
                     return make_response(jsonify({"error": "Timesheet is Submitted, status can not be changed"}), 400)
-                elif timesheets['status'] == "Review" and timesheet['status'] != "Review":
+                elif timesheets['status'] == "Review":
                     return make_response(jsonify({"error": "Timesheet is in Review, status can not be changed"}), 400)
 
 
