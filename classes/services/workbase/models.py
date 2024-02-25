@@ -6,7 +6,7 @@
 # db = MongoEngine()
 
 from datetime import datetime
-from bson.objectid import ObjectId
+from bson import ObjectId
 
 class Team:
     def __init__(self, name: str, projectID: ObjectId, leadID: ObjectId):
@@ -49,7 +49,7 @@ class Task:
 
 
 class Project:
-    def __init__(self, name: str, description: str, managerID: ObjectId, status: str, budget: float, actual_cost: float, planned_cost: float, created_at: datetime, created_by: ObjectId):
+    def __init__(self, name: str, description: str, managerID: ObjectId, status: str, budget: float, actual_cost: float, planned_cost: float, created_by: ObjectId, created_at: datetime = datetime.now()):
         self.name = name
         self.description = description
         self.managerID = managerID

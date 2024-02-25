@@ -4,13 +4,13 @@ from bson import ObjectId
 from flask import jsonify, make_response
 from pymongo import MongoClient
 
-from ...connectors.dbConnector import dbConnectCheck, get_WorkAccount
+from ...connectors.dbConnector import dbConnectCheck, get_WorkAccount, verify_attribute
 from ...timesheet.utils import userType
 from ...workbase.models import Assignment, Task, Team, Project, Job
 from ...timesheet.models import AssignmentGroup, AssignmentInstance
 
 # Function to determine the user type based on the account ID
-def fetch_projects(account_uuid, user_type):
+def fetch_projects(account_uuid, user_type, superAdmin):
     try: 
         # Check the connection to the MongoDB server
         client = dbConnectCheck()
@@ -28,7 +28,7 @@ def fetch_projects(account_uuid, user_type):
                 manager_id = account_id
                 # Get all the projects from the collection
 
-            work_data_pipeline = [
+            superAdmin_pipeline = [
                 {"$lookup": {"from": "Projects","localField": "_id","foreignField": "managerID","as": "projects"}},
                     {"$match": {"projects": {"$ne": []}}},
                 {"$lookup": {"from": "AssignmentGroup","localField": "projects._id","foreignField": "projectID","as": "Assignee"}},
@@ -175,18 +175,24 @@ def fetch_projects(account_uuid, user_type):
                 {"$project": {"_id": 0,"managerID": "$_id","Projects": "$projects",}},
                 {"$project": {"Projects.teams.projectID": 0,"Projects.teams.leadID": 0,"Projects.teams.teamLead.teamID": 0,"Projects.teams.teamLead.role": 0,"Projects.teams.teamMembers.teamID": 0,
                               "Projects.Assignee.assignmentInstances": 0,"Projects.Assignee.projectID": 0,"Projects.Assignee.assignment.taskID": 0}},
-                {"$match": {"managerID": ObjectId(manager_id)}},
                 ]
+                
+            manager_pipeline = superAdmin_pipeline.copy()
+            manager_pipeline.append({"$match": {"managerID": ObjectId(manager_id)}})
 
-            manager_data = list(client.WorkBaseDB.Members.aggregate(work_data_pipeline))
+            project_data = []
+            if superAdmin:
+                project_data = list(client.WorkBaseDB.Members.aggregate(superAdmin_pipeline))
+            else:
+                project_data = list(client.WorkBaseDB.Members.aggregate(manager_pipeline))
+            
+            # return make_response(jsonify({"superAdmin": superAdmin,"list items": len(project_data)}), 200)
             # Check if manager data is empty
-            if not manager_data:
+            if not project_data:
                 return make_response(jsonify({"message": "No Data here yet"}), 200)
     
-
-
             # Convert the employee_sheets cursor object to a JSON object
-            manager_json = json.dumps(manager_data, default=str)
+            manager_json = json.dumps(project_data, default=str)
             manager_data_results = json.loads(manager_json)
             # Return the JSON response
             return make_response(jsonify({"managerProjectData": manager_data_results}), 200)          
@@ -271,37 +277,29 @@ def fetch_organization_members(superAdmin_uuid):
     
 def create_projects(admin_uuid, project_data):
     try:
-        
         # Check the connection to the MongoDB server
         client = dbConnectCheck()
         verify = get_WorkAccount(client, admin_uuid)
         if not verify.status_code == 200:
             # If the connection fails, return the error response
             return verify
-        account_id = verify.json['_id']
+        account_id = ObjectId(verify.json['_id'])
         # If the connection is successful
         if isinstance(client, MongoClient):
-            # Get the 'name' field from the project data
-            project_name = project_data.get('name')
-            # Get the 'description' field from the project data
-            project_description = project_data.get('description')
-            # Get the 'manager_id' field from the project data
-            project_manager_id = project_data.get('managerID')
-            # Get the 'status' field from the project data
-            project_status = project_data.get('status')
-            # Get the 'budget' field from the project data
-            project_budget = project_data.get('budget')
-            # Get the 'actual_cost' field from the project data
-            project_actual_cost = project_data.get('actual_cost')
-            # Get the 'planned_cost' field from the project data
-            project_planned_cost = project_data.get('planned_cost')
-            # Get the 'created_at' field from the project data
-            project_created_at = datetime.now()
+            # check if timesheetRecords is valid
+            if project_data['managerID'] is not None:
+                project_data['managerID'] = ObjectId(project_data['managerID'])
+                verify = verify_attribute(collection=client.WorkBaseDB.Members, key="_id",attr_value=ObjectId(project_data['managerID']))
+                if not verify:
+                    return make_response(jsonify({"error": "Manager is not valid"}), 400)                    
+            else:
+                return make_response(jsonify({"error": "Manager data is required"}), 400)
 
             # create the project
-            project = Project(name=project_name, description=project_description, managerID=project_manager_id, status=project_status, budget=project_budget, actual_cost=project_actual_cost, planned_cost=project_planned_cost, created_at=project_created_at, created_by=account_id)
+            project = Project(name=project_data['name'], description=project_data['description'], managerID=project_data['managerID'], status=project_data['status'], budget=project_data['budget'], actual_cost=project_data['actual_cost'], planned_cost=project_data['planned_cost'], created_by=account_id)
             # Insert the project into the collection
-            project_id = client.WorkBaseDB.Projects.insert_one(project)
+            project_id = client.WorkBaseDB.Projects.insert_one(project.to_dict())
+            # return make_response(jsonify({"message": "Working"}), 200)
             # If the project is successfully created
             if project_id:
                 # Return the success response

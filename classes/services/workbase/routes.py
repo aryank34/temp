@@ -20,10 +20,11 @@ def get_projects():
         # uid = request.json.get("uid")
         uuid = tokenAuth.token_decode(request.headers.get('Authorization'))['payload']['id']
 
+        superAdmin = bool(isSuperAdmin(uuid).json['response'])
         # Call the userType function from the utils module
         user_type = userType(uuid).json['userType']
         # Call the userType function from the utils module
-        fetch_projects_response = fetch_projects(uuid, user_type)
+        fetch_projects_response = fetch_projects(uuid, user_type, superAdmin)
 
         # Return the response from the userType function
         return fetch_projects_response
