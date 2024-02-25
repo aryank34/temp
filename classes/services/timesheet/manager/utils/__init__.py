@@ -235,8 +235,7 @@ def get_timesheets_for_manager(client, manager_id, status=None):
         if not filtered_timesheets:
             return make_response(jsonify({"message": "No Timesheets here yet"}), 200)
 
-        startDate = 'startDate'
-        filtered_timesheets = sorted(filtered_timesheets, key=lambda x: x[startDate])
+        filtered_timesheets = sorted(filtered_timesheets, key=lambda x: x['startDate'])
 
         # return make_response(jsonify({"message": "Working in review"}), 200)
         # Convert the manager_sheets cursor object to a JSON object
