@@ -85,12 +85,13 @@ def addData(data, year, type):
         # print(count)
         if (type == 'Sale' and 'PO_Order' in data and  data['PO_Order'] != "") or (type == 'Current'):
             sp[collection_name].insert_one(data)
+            
         else:
             return make_response({"ERROR":"If Sale type, PO order missing"})
 
         if count+1 == sp[collection_name].count_documents({"Type":type}):
             #Update the dropdown
-
+            DropDownUpdate(type, data)
             return make_response({"message":"Sales Record Added"}, 200) 
         else:
             return make_response({"ERROR":"Sale Record Not Added"}, 500)
@@ -125,6 +126,9 @@ def editData(data, year, type):
             return make_response({"ERROR":"Wrong _id"}, 404)
         data.pop("_id",None)
         data.pop("Type",None)
+
+        DropDownUpdate(type, data)
+
         # print(data)
         data_obj = {
             "$set":data
@@ -137,6 +141,47 @@ def editData(data, year, type):
     except Exception as e:
         return make_response({"ERROR in dbConnection":str(e)}, 500)
 
+def DropDownUpdate(type, data):
+    if type == 'Current':
+        Channel = data['Channel']
+        Reseller = data['Reseller']
+        EC_PointOfContact = data['EC_PointOfContact']
+        Stage = data['Stage']
+        ChancesOfWinning = data['ChancesOfWinning']
+        WonLost = data['WonLost']
+        result = sp.DropDownData.find_one({"Type":type},{'_id':0})
+        if Channel not in result['Channel']:
+            sp.DropDownData.update_one({},{"$push":{'Channel':Channel}})
+        if Reseller not in result['Reseller']:
+            sp.DropDownData.update_one({},{"$push":{'Reseller':Reseller}})
+        if EC_PointOfContact not in result['EC_PointOfContact']:
+            sp.DropDownData.update_one({},{"$push":{'EC_PointOfContact':EC_PointOfContact}})
+        if Stage not in result['Stage']:
+            sp.DropDownData.update_one({},{"$push":{'Stage':Stage}})
+        if ChancesOfWinning not in result['ChancesOfWinning']:
+            sp.DropDownData.update_one({},{"$push":{'ChancesOfWinning':ChancesOfWinning}})
+        if WonLost not in result['WonLost']:
+            sp.DropDownData.update_one({},{"$push":{'WonLost':WonLost}})
+    elif type == 'Sale':
+        Channel = data['Channel']
+        Reseller = data['Reseller']
+        EC_PointOfContact = data['EC_PointOfContact']
+        Stage = data['Stage']
+        PaymentStatus = data['PaymentStatus']
+        PaymentTerms = data['PaymentTerms']
+        result = sp.DropDownData.find_one({"Type":type},{'_id':0})
+        if Channel not in result['Channel']:
+            sp.DropDownData.update_one({},{"$push":{'Channel':Channel}})
+        if Reseller not in result['Reseller']:
+            sp.DropDownData.update_one({},{"$push":{'Reseller':Reseller}})
+        if EC_PointOfContact not in result['EC_PointOfContact']:
+            sp.DropDownData.update_one({},{"$push":{'EC_PointOfContact':EC_PointOfContact}})
+        if Stage not in result['Stage']:
+            sp.DropDownData.update_one({},{"$push":{'Stage':Stage}})
+        if PaymentStatus not in result['PaymentStatus']:
+            sp.DropDownData.update_one({},{"$push":{'PaymentStatus':PaymentStatus}})
+        if PaymentTerms not in result['PaymentTerms']:
+            sp.DropDownData.update_one({},{"$push":{'PaymentTerms':PaymentTerms}})
 
 def deleteData(data, year, type):
     try:
@@ -308,7 +353,42 @@ def calculateSales(year, type, data):
     except Exception as e:
         return str(e)
 
+def dropDownData(year, type):
+    try:
+        type = type.capitalize()
+        # print(type)
+        result = list(sp.list_collection_names())
+        # print(result)
+        collection_name = ""
+        for c in result:
+            if c.startswith("Year") and c.endswith("Data"):
+                c = c.replace("Year","")
+                c = c.replace("Data","")
+                # years.append(int(c))
+                if int(c) == year:
+                    collection_name = f"Year{c}Data"
+                    break
+        if collection_name == "":
+            return make_response({"ERROR":"No data for this year error"}, 404)
+        # if type == 'Current':
+            #Customer, Channel, Reseller, EC_PointOfContact, Stage, ChancesOfWinnning, WonLost
+        data = list(sp[collection_name].find({'Type':type},{"Customer":1,"_id":0}))
+        Customer=[]
+        for doc in data:
+            Customer.append(doc['Customer'])
+        Customer = list(set(Customer))
+        # print(Customer)
+        if type == 'Current':
+            query = {"_id":0,"Channel":1,"Reseller":1,"EC_PointOfContact":1,"Stage":1,"ChancesOfWinning":1,"WonLost":1}
+        elif type == 'Sale':
+            query = {"_id":0,"Channel":1,"Reseller":1,"EC_PointOfContact":1,"Stage":1,"PaymentTerms":1,"PaymentStatus":1}
 
+        data = list(sp.DropDownData.find({"Type":type},query))[0]
+        data['Customer'] = Customer
+        # print(data)
+        return make_response({"message":data}, 200)
+    except Exception as e:
+        return make_response({"ERROR":str(e)}, 500)
 
 
 #--------------------------------------------------------------------------------
@@ -478,7 +558,7 @@ def updateDropDown(data):
     WonLost = data['WonLost']
     # print(Customer,Channel, Reseller, EC_PointOfContact, Stage, ChancesOfWinning, WonLost)
     # print(result['Customers'])
-
+    
     if Customer not in result['Customers']:
         dropDownDB.update_one({},{"$push":{'Customers':Customer}})
     if Channel not in result['Channel']:

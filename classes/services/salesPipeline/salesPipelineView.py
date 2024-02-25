@@ -1,7 +1,7 @@
 from flask import Blueprint, request, make_response
 from ..loginAuth.tokenAuth import tokenAuth
 from .dbConnection import addSalesRecord, getAllSalesRecords, getDropDownData, editSalesRecord, deleteSalesRecord, getAllYears, downloadExcel
-from .dbConnection import displayData, addData, editData, deleteData, transferCurrentToSale
+from .dbConnection import displayData, addData, editData, deleteData, transferCurrentToSale, dropDownData
 auth = tokenAuth()
 
 salesPipelineView = Blueprint('salesPipelineView',__name__)
@@ -17,6 +17,8 @@ def getYearData(year,type):
 @auth.token_auth("/dashboard/salespipeline/<year>/<type>/add")
 def addRecord(year,type):
     #GET method for dropdown data
+    if request.method == 'GET':
+        return dropDownData(int(year), str(type))
 
     if request.method == 'POST':
         return addData(request.json, int(year),str(type))
@@ -26,7 +28,8 @@ def addRecord(year,type):
 @auth.token_auth("/dashboard/salespipeline/<year>/<type>/edit")
 def editRecord(year, type):
     #GET method for dropdown data
-
+    if request.method == 'GET':
+        return dropDownData(int(year), str(type))
     if request.method == 'PUT':
         return editData(request.json, int(year), str(type))
 
@@ -62,8 +65,8 @@ def getYears():
     if request.method == 'GET':
         return getAllYears()
 
-#@salesPipelineView.route("/dashboard/salespipeline/<year>", methods=['GET'])
-#@auth.token_auth("/dashboard/salespipeline/<year>")
+@salesPipelineView.route("/dashboard/salespipeline/<year>", methods=['GET'])
+@auth.token_auth("/dashboard/salespipeline/<year>")
 # @auth.token_auth("/dashboard/salespipeline/2024")
 # @auth.token_auth("/dashboard/salespipeline/2023")
 # @auth.token_auth("/dashboard/salespipeline/2022")
