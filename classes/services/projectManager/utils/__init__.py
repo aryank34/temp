@@ -31,18 +31,18 @@ def fetch_projects(account_uuid, user_type):
             work_data_pipeline = [
                 {"$lookup": {"from": "Projects","localField": "_id","foreignField": "managerID","as": "projects"}},
                     {"$match": {"projects": {"$ne": []}}},
-                {"$lookup": {"from": "AssignmentGroup","localField": "projects._id","foreignField": "projectID","as": "assignmentGroups"}},
-                {"$lookup": {"from": "Assignments","localField": "assignmentGroups.assignmentInstances.assignmentID","foreignField": "_id","as": "assignments"}},
+                {"$lookup": {"from": "AssignmentGroup","localField": "projects._id","foreignField": "projectID","as": "Assignee"}},
+                {"$lookup": {"from": "Assignments","localField": "Assignee.assignmentInstances.assignmentID","foreignField": "_id","as": "assignments"}},
                 {"$lookup": {"from": "Members","localField": "assignments.assignedTo","foreignField": "_id","as": "members"}},
                 {"$lookup": {"from": "Tasks","localField": "assignments.taskID","foreignField": "_id","as": "tasks"}},
                 {"$lookup": {"from": "Teams","localField": "projects._id","foreignField": "projectID","as": "teams"}},
                 {"$lookup": {"from": "Members","localField": "teams._id","foreignField": "teamID","as": "teamMembers"}},
-                {"$project": {"teamID": 0,"role": 0,"employeeDataID": 0,"name": 0,"projects.managerID": 0,"assignmentGroups.assignedBy": 0,
-                              "assignmentGroups.assignmentInstances.assignDate": 0,"assignments.projectID": 0,"assignments.assignedBy": 0,
+                {"$project": {"teamID": 0,"role": 0,"employeeDataID": 0,"name": 0,"projects.managerID": 0,"Assignee.assignedBy": 0,
+                              "Assignee.assignmentInstances.assignDate": 0,"assignments.projectID": 0,"assignments.assignedBy": 0,
                               "members.employeeDataID": 0,"teamMembers.employeeDataID": 0,"members.teamID": 0,"tasks.projectID": 0,
                               "tasks.deadline": 0,"tasks.joblist": 0,"tasks.completionStatus": 0}},
                 {"$project": {"_id": 1,"projects": 1,"assignments": 1,"members": 1,"tasks": 1,"teams": 1,"teamMembers":1,
-                              "assignmentGroups": {"$map": {"input": "$assignmentGroups",
+                              "Assignee": {"$map": {"input": "$Assignee",
                                                             "as": "group",
                                                             "in": {"_id": "$$group._id",
                                                                    "name": "$$group.name",
@@ -60,11 +60,11 @@ def fetch_projects(account_uuid, user_type):
                             "$mergeObjects": [
                             "$$project",
                             {
-                                "assignmentGroups": {
+                                "Assignee": {
                                 "$map": {
                                     "input": {
                                     "$filter": {
-                                        "input": "$assignmentGroups",
+                                        "input": "$Assignee",
                                         "as": "group",
                                         "cond": {"$eq": ["$$group.projectID", "$$project._id"]}
                                     }
@@ -172,9 +172,9 @@ def fetch_projects(account_uuid, user_type):
                     }
                     }
                 },
-                {"$project": {"_id": 0,"managerID": "$_id","projects": 1}},
-                {"$project": {"projects.teams.projectID": 0,"projects.teams.leadID": 0,"projects.teams.teamLead.teamID": 0,"projects.teams.teamLead.role": 0,"projects.teams.teamMembers.teamID": 0,
-                              "projects.assignmentGroups.assignmentInstances": 0,"projects.assignmentGroups.projectID": 0,"projects.assignmentGroups.assignment.taskID": 0}},
+                {"$project": {"_id": 0,"managerID": "$_id","Projects": "$projects",}},
+                {"$project": {"Projects.teams.projectID": 0,"Projects.teams.leadID": 0,"Projects.teams.teamLead.teamID": 0,"Projects.teams.teamLead.role": 0,"Projects.teams.teamMembers.teamID": 0,
+                              "Projects.Assignee.assignmentInstances": 0,"Projects.Assignee.projectID": 0,"Projects.Assignee.assignment.taskID": 0}},
                 {"$match": {"managerID": ObjectId(manager_id)}},
                 ]
 
@@ -183,8 +183,10 @@ def fetch_projects(account_uuid, user_type):
             if not manager_data:
                 return make_response(jsonify({"message": "No Data here yet"}), 200)
     
+
+
             # Convert the employee_sheets cursor object to a JSON object
-            manager_json = json.dumps(manager_data[0]['projects'], default=str)
+            manager_json = json.dumps(manager_data, default=str)
             manager_data_results = json.loads(manager_json)
             # Return the JSON response
             return make_response(jsonify({"managerProjectData": manager_data_results}), 200)          

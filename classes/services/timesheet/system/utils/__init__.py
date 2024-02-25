@@ -33,7 +33,7 @@ current_dir = os.path.dirname(os.path.abspath(__file__))
 parent_dir = os.path.dirname(current_dir)
 # Join the parent directory with the file name
 kill_file_path = os.path.join(parent_dir, 'kill_timesheet_sync.txt')
-log_file_path = os.path.join(parent_dir, 'logfile.log')
+log_file_path = os.path.join(parent_dir, 'logfile.log', format='%(asctime)s - %(levelname)s - %(message)s')
 logging.basicConfig(filename=log_file_path, level=logging.INFO)  # Set the logging configuration    
 
 # -------------------------------------------------------------------------------------
@@ -160,10 +160,11 @@ def dbConnectCheck():
     try:
         uri = mongo_host  # Get the MongoDB host URI
         client = MongoClient(uri, server_api=ServerApi('1'), UuidRepresentation="standard")  # Create a new MongoDB client using the host URI, server API version, and UUID representation
-
+        logging.info('Connection to MongoDB server successful.')
         return client  # Return the client if the connection is successful
 
     except Exception as e:
+        logging.error('Failed to connect to MongoDB server: %s', e)
         return make_response(jsonify({"error": str(e)}), 500)  # Return an error response if the connection fails
 
 # Function to get the date of the next Monday at midnight    
@@ -213,17 +214,19 @@ def update_status_timesheets():
             for document in documents_draft:
                 manager_sheets_collection.update_one({"_id": document["_id"]}, {"$set": {"status": "Draft"}})
             
-            print("Status Update Completed")  # Print a success message
+            logging.info("Status Update Completed")  # Log a success message
         else:
-            # If the connection fails, print an error message
-            print("Failed to connect to the MongoDB server while updating status of timesheets")
+            # If the connection fails, log an error message
+            logging.error("Failed to connect to the MongoDB server while updating status of timesheets")
     except Exception as e:
-        # If an error occurs, print the error message
-        print("Error updating status of timesheets: ", e)
+        # If an error occurs, log the error message
+        logging.error("Error updating status of timesheets: %s", e)
 
 # Function to store employee sheets in the database
-def store_employee_sheets(data,client):
-    try: 
+def store_employee_sheets(data, client):
+    try:
+        logging.info("Storing employee sheets in the database")
+        
         # Create WorkDay object for each day of the week
         workDay = {
             "mon": WorkDay(data["workDay"]["mon"]["work"]),
@@ -234,54 +237,62 @@ def store_employee_sheets(data,client):
             "sat": WorkDay(data["workDay"]["sat"]["work"]),
             "sun": WorkDay(data["workDay"]["sun"]["work"]),
         }
-
+        logging.info("Created WorkDay object for each day of the week")
+        
         # Extract projectID, taskID, and description from the data
         projectID = ObjectId(data["Project"]["projectID"])
         taskID = ObjectId(data["Task"]["taskID"])
         description = data["description"]
-
+        logging.info("Extracted projectID, taskID, and description from the data")
+        
         # Create an EmployeeSheetObject with the extracted data and the created WorkDay object
         employeeSheetObject = EmployeeSheetObject(projectID=projectID, taskID=taskID, workDay=workDay, description=description)
+        logging.info("Created EmployeeSheetObject")
         
         # Extract version from the data
         version = data["version"]
-
+        logging.info("Extracted version from the data")
+        
         # Create an EmployeeSheetInstance with the extracted version and the created EmployeeSheetObject
-        employeeSheetInstance = EmployeeSheetInstance(version=version, employeeSheetObject=employeeSheetObject) 
-
+        employeeSheetInstance = EmployeeSheetInstance(version=version, employeeSheetObject=employeeSheetObject)
+        logging.info("Created EmployeeSheetInstance")
+        
         # Extract managerSheetID, employeeID, managerID, startDate, and endDate from the data
         managerSheetID = ObjectId(data["managerSheetID"])
         employeeID = ObjectId(data["Employee"]["employeeID"])
         managerID = ObjectId(data["Manager"]["managerID"])
         startDate = data["startDate"]
         endDate = data["endDate"]
-
+        logging.info("Extracted managerSheetID, employeeID, managerID, startDate, and endDate from the data")
+        
         # Create an EmployeeSheet with the extracted data and the created EmployeeSheetInstance
         employeeSheet = EmployeeSheet(managerSheetID=managerSheetID, employeeID=employeeID, managerID=managerID, startDate=startDate, endDate=endDate, employeeSheetInstances=[employeeSheetInstance])
-
+        logging.info("Created EmployeeSheet")
+        
         # Check if an EmployeeSheet with the same managerSheetID and employeeID already exists in the database
-        if (client.TimesheetDB.EmployeeSheets.find_one({"managerSheetID": employeeSheet.managerSheetID,
-                                                        "employeeID": employeeSheet.employeeID}) is None):
-            # If not, insert the created EmployeeSheet into the database and print a success message
+        if (client.TimesheetDB.EmployeeSheets.find_one({"managerSheetID": employeeSheet.managerSheetID, "employeeID": employeeSheet.employeeID}) is None):
+            # If not, insert the created EmployeeSheet into the database and log a success message
             result = client.TimesheetDB.EmployeeSheets.insert_one(employeeSheet.to_dict())
-            msg_str = "Employee Sheet Created"+": EmployeeSheetID :"+ str(result.inserted_id)
+            msg_str = "Employee Sheet Created" + ": EmployeeSheetID :" + str(result.inserted_id)
+            logging.info("Inserted the created EmployeeSheet into the database")
         else:
             # If an EmployeeSheet with the same managerSheetID and employeeID already exists, check if an EmployeeSheetInstance with the same version already exists
             if (client.TimesheetDB.EmployeeSheets.find_one({"employeeSheetInstances.version": version}) is None):
-                # If not, update the existing EmployeeSheet with the created EmployeeSheetInstance and print a success message
+                # If not, update the existing EmployeeSheet with the created EmployeeSheetInstance and log a success message
                 result = client.TimesheetDB.EmployeeSheets.update_one({"employeeID": employeeSheet.employeeID, "managerSheetID": employeeSheet.managerSheetID},
                                                             {"$push": {"employeeSheetInstances": employeeSheetInstance.to_dict()}})
-                msg_str = "Employee Sheet updated"+": EmployeeSheetID :"+ str(result.inserted_id)
-            
+                msg_str = "Employee Sheet updated" + ": EmployeeSheetID :" + str(result.inserted_id)
+                logging.info("Updated the existing EmployeeSheet with the created EmployeeSheetInstance")
             else:
-                # If an EmployeeSheetInstance with the same version already exists, print a message indicating that the EmployeeSheet already exists
+                # If an EmployeeSheetInstance with the same version already exists, log a message indicating that the EmployeeSheet already exists
                 msg_str = "Employee Sheet already exists"
-
-        print(msg_str)  # Print the message
-
+                logging.info("Employee Sheet already exists")
+        
+        logging.info(msg_str)  # Log the message
+        logging.info("Completed storing employee sheets in the database")
     except Exception as e:
-        # If an error occurs, print an error message
-        print("Error creating Timesheet Records: ", e)
+        # If an error occurs, log an error message
+        logging.error("Error creating Timesheet Records: %s", e)
         
 # Function to distribute active timesheets
 def distribute_active_timesheets():

@@ -1,5 +1,7 @@
 # Import necessary modules
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta
+import threading
 from bson import ObjectId
 from flask import Flask, jsonify, make_response
 from pymongo import MongoClient
@@ -233,6 +235,13 @@ def get_timesheets_for_manager(client, manager_id, status=None):
         if not filtered_timesheets:
             return make_response(jsonify({"message": "No Timesheets here yet"}), 200)
 
+        # sort the sheets by their startDate
+        if status == "Draft" or status == "Upcoming" or status == "Active":
+            startDate = 'Start Date'
+        elif status == "Review":
+            startDate = 'startDate'
+        filtered_timesheets = sorted(filtered_timesheets, key=lambda x: x[startDate])
+
         # return make_response(jsonify({"message": "Working in review"}), 200)
         # Convert the manager_sheets cursor object to a JSON object
         timesheets_json = json.dumps(filtered_timesheets, default=str)
@@ -277,6 +286,29 @@ def fetch_timesheets(manager_uuid, status=None):
         # If an error occurs, return the error response
         return make_response(jsonify({"error": str(e)}), 500)
 
+def store_timesheet_object(args):
+    duration, projectID, workDay, description, status, assignGroupID, manager_id = args['duration'], args['projectID'], args['workDay'], args['description'], args['status'], args['assignGroupID'], args['manager_id']
+    client = dbConnectCheck()  # create a new MongoClient instance for this thread
+    startDate = datetime.strptime(duration['startDate'], "%Y-%m-%d %H:%M:%S")
+    endDate = datetime.strptime(duration['endDate'], "%Y-%m-%d %H:%M:%S")
+    # Create ManagerSheetsAssign object
+    manager_sheets_assign = ManagerSheetsAssign(projectID = projectID, startDate = startDate, endDate = endDate, workDay = workDay, description = description, status = status, assignGroupID = assignGroupID)
+    # Create a new timesheet object in managerSheets Collection and fetch the new timesheet ID
+    new_timesheet = client.TimesheetDB.ManagerSheets.insert_one(manager_sheets_assign.to_dict())
+    new_timesheet_id = new_timesheet.inserted_id
+    # Create ManagerSheetsInstance object
+    lastUpdateDate = datetime.now()
+    manager_sheets_instance = ManagerSheetsInstance(lastUpdateDate=lastUpdateDate, managerSheetsObjectID=new_timesheet_id)
+
+    # Update the managerSheetsObjects field in TimesheetRecords Collection, if managerID is not matched create new entry
+    if (client.TimesheetDB.TimesheetRecords.find_one({"managerID": ObjectId(manager_id)})) is None:
+        client.TimesheetDB.TimesheetRecords.insert_one({"managerID": ObjectId(manager_id), 
+                                                        "managerSheetsInstances": [manager_sheets_instance.to_dict()]})
+    else:
+        client.TimesheetDB.TimesheetRecords.update_one({"managerID": ObjectId(manager_id)},
+                                                    {"$push": {"managerSheetsInstances": manager_sheets_instance.to_dict()}}
+    )
+
 def store_data(data,manager_id,client):
     try: 
         # Convert string to ObjectId
@@ -317,23 +349,48 @@ def store_data(data,manager_id,client):
             "sun": WorkDay(data["workDay"]["sun"]),
         }
 
-        # Create ManagerSheetsAssign object
-        manager_sheets_assign = ManagerSheetsAssign(projectID = projectID, startDate = startDate, endDate = endDate, workDay = workDay, description = description, status = status, assignGroupID = assignGroupID)
-        # Create a new timesheet object in managerSheets Collection and fetch the new timesheet ID
-        new_timesheet = client.TimesheetDB.ManagerSheets.insert_one(manager_sheets_assign.to_dict())
-        new_timesheet_id = new_timesheet.inserted_id
-        # Create ManagerSheetsInstance object
-        lastUpdateDate = datetime.now()
-        manager_sheets_instance = ManagerSheetsInstance(lastUpdateDate=lastUpdateDate, managerSheetsObjectID=new_timesheet_id)
+        # if endDate is not a sunday before midnight, then we need to set it to next sunDay before midnight
+        if endDate.weekday() != 6:
+            endDate = endDate + timedelta(days=(6 - endDate.weekday()))
+            endDate = datetime(endDate.year, endDate.month, endDate.day, 23, 59, 59)
 
-        # Update the managerSheetsObjects field in TimesheetRecords Collection, if managerID is not matched create new entry
-        if (client.TimesheetDB.TimesheetRecords.find_one({"managerID": ObjectId(manager_id)})) is None:
-            client.TimesheetDB.TimesheetRecords.insert_one({"managerID": ObjectId(manager_id), 
-                                                            "managerSheetsInstances": [manager_sheets_instance.to_dict()]})
-        else:
-            client.TimesheetDB.TimesheetRecords.update_one({"managerID": ObjectId(manager_id)},
-                                                        {"$push": {"managerSheetsInstances": manager_sheets_instance.to_dict()}}
-        )
+        # if endDate and startDate are within the same week [mon-sun], then alright. But, if they exceed, then we need to break down the timesheet into multiple timesheets with each one within each week
+        # print the hours and minutes of the times too. final setting of each end date should be the day and time is 23:59:59
+        def storeDates(startDate, endDate):
+            dates = []
+            
+            def printWeekOrNot(startDate, endDate):
+                endDate = endDate.replace(hour=23, minute=59, second=59)
+                if startDate.weekday() == 0 and endDate.weekday() == 6:
+                    dates.append({'startDate': startDate.strftime("%Y-%m-%d %H:%M:%S"), 'endDate': endDate.strftime("%Y-%m-%d %H:%M:%S")})
+                else:
+                    dates.append({'startDate': startDate.strftime("%Y-%m-%d %H:%M:%S"), 'endDate': endDate.strftime("%Y-%m-%d %H:%M:%S"), 'duration': (endDate - startDate + timedelta(days=1)).days})
+            
+            def breakDownTime(startDate, endDate):
+                while startDate <= endDate:
+                    nextWeek = startDate + timedelta(days=(6 - startDate.weekday()))
+                    if nextWeek > endDate:
+                        printWeekOrNot(startDate, endDate)
+                        break
+                    else:
+                        printWeekOrNot(startDate, nextWeek)
+                        startDate = nextWeek + timedelta(days=1)
+            
+            breakDownTime(startDate, endDate)
+            return dates
+        broken_durations = storeDates(startDate, endDate)
+
+        # create timesheets with the broken dates
+        with ThreadPoolExecutor(max_workers=10) as executor:
+            futures = []
+            for duration in broken_durations:
+                args = {'duration': duration, 'projectID': projectID, 'workDay': workDay, 'description': description, 'status': status, 'assignGroupID': assignGroupID, 'manager_id': manager_id}
+                futures.append(executor.submit(store_timesheet_object, args))
+
+        # wait for all futures to complete
+        for future in futures:
+            future.result()
+
         return make_response(jsonify(success_message), 200)
     except Exception as e:
         # If an error occurs, return the error response
@@ -349,6 +406,25 @@ def edit_data(data,manager_id,client):
         startDate = datetime.strptime(data['startDate'], "%Y-%m-%d %H:%M:%S")
         endDate = datetime.strptime(data['endDate'], "%Y-%m-%d %H:%M:%S")
 
+        # Extract other fields
+        action = data["action"]
+        # if action is not "Draft" or "Save", throw error with message: "Illegal Action for timesheet"
+        if action not in ["Draft", "Save"]:
+            return make_response(jsonify({"error": "Illegal Action for timesheet. Action must be 'Save' or 'Draft'"}), 400)
+
+        status=""
+        success_message=""
+        if action == "Draft":
+            status = "Draft"
+            success_message = {"message": "Timesheet saved to Draft successfully"}
+        elif action == "Save":
+            success_message = {"message": "Timesheet assigned successfully"}
+            currentDate = datetime.now()
+            if (startDate-currentDate<=timedelta(1)):
+                status = "Active"
+            else:
+                status = "Upcoming"
+        
         # Extract other fields
         description = data["description"]
 
@@ -369,7 +445,7 @@ def edit_data(data,manager_id,client):
 
         # store the current state of the ManagerSheet for comparison
         current_managerSheet = client.TimesheetDB.ManagerSheets.find_one({"_id": managerSheetID})
-        status = current_managerSheet['status']
+        # if status is Draft, then update all fields
         if status == "Draft":
             # update fields in database
             client.TimesheetDB.ManagerSheets.update_one({"_id": managerSheetID}, {"$set": {"projectID": projectID, "startDate": startDate, "endDate": endDate, "workDay": workDay, "description": description, "status": status, "assignGroupID": assignGroupID}})
@@ -409,7 +485,7 @@ def edit_data(data,manager_id,client):
                                                         {"$set": {"managerSheetsInstances.$.lastUpdateDate": lastUpdateDate, "managerSheetsInstances.$.version": updated_version}}
                                                     )
 
-        return make_response(jsonify({"message": "Timesheet Edit Successful"}), 200)
+        return make_response(jsonify({"message": success_message}), 200)
     except Exception as e:
         # If an error occurs, return the error response
         return make_response(jsonify({"error": str(e)}), 500)
@@ -785,61 +861,160 @@ def get_workData(client, manager_id):
     try: 
         # Use aggregation pipeline to match the employee ID and project the required fields
         project_pipeline = [
-          { "$group": {
-              "_id": "$managerID",
-              "Projects": {
-                "$push": {
-                  "projectID": "$_id",
-                  "name": "$name"
-                }
-              }
-            }
-          },
-          {
-            "$project": {
-              "_id": 0,
-              "managerID": "$_id",
-              "Projects": 1
-            }
-          },
-          {"$match": {"managerID": ObjectId(manager_id)}},
-        ]
+                {"$lookup": {"from": "Projects","localField": "_id","foreignField": "managerID","as": "projects"}},
+                    {"$match": {"projects": {"$ne": []}}},
+                {"$lookup": {"from": "AssignmentGroup","localField": "projects._id","foreignField": "projectID","as": "Assignee"}},
+                {"$lookup": {"from": "Assignments","localField": "Assignee.assignmentInstances.assignmentID","foreignField": "_id","as": "assignments"}},
+                {"$lookup": {"from": "Members","localField": "assignments.assignedTo","foreignField": "_id","as": "members"}},
+                {"$lookup": {"from": "Tasks","localField": "assignments.taskID","foreignField": "_id","as": "tasks"}},
+                {"$lookup": {"from": "Teams","localField": "projects._id","foreignField": "projectID","as": "teams"}},
+                {"$lookup": {"from": "Members","localField": "teams._id","foreignField": "teamID","as": "teamMembers"}},
+                {"$project": {"teamID": 0,"role": 0,"employeeDataID": 0,"name": 0,"projects.managerID": 0,"Assignee.assignedBy": 0,
+                              "Assignee.assignmentInstances.assignDate": 0,"assignments.projectID": 0,"assignments.assignedBy": 0,
+                              "members.employeeDataID": 0,"teamMembers.employeeDataID": 0,"members.teamID": 0,"tasks.projectID": 0,
+                              "tasks.deadline": 0,"tasks.joblist": 0,"tasks.completionStatus": 0}},
+                {"$project": {"_id": 1,"projects": 1,"assignments": 1,"members": 1,"tasks": 1,"teams": 1,"teamMembers":1,
+                              "Assignee": {"$map": {"input": "$Assignee",
+                                                            "as": "group",
+                                                            "in": {"_id": "$$group._id",
+                                                                   "name": "$$group.name",
+                                                                   "assignmentInstances": {
+                                                                       "$map": {"input": "$$group.assignmentInstances",
+                                                                       "as": "instance",
+                                                                       "in": "$$instance.assignmentID"}},
+                                                                    "projectID": "$$group.projectID"}}}}},
+                {"$addFields": {
+                    "projects": {
+                        "$map": {
+                        "input": "$projects",
+                        "as": "project",
+                        "in": {
+                            "$mergeObjects": [
+                            "$$project",
+                            {
+                                "Assignee": {
+                                "$map": {
+                                    "input": {
+                                    "$filter": {
+                                        "input": "$Assignee",
+                                        "as": "group",
+                                        "cond": {"$eq": ["$$group.projectID", "$$project._id"]}
+                                    }
+                                    },
+                                    "as": "group",
+                                    "in": {
+                                    "$mergeObjects": [
+                                        "$$group",
+                                        {
+                                        "assignment": {
+                                            "$map": {
+                                            "input": {
+                                                "$filter": {
+                                                "input": "$assignments",
+                                                "as": "assignment",
+                                                "cond": {"$in": ["$$assignment._id", "$$group.assignmentInstances"]}
+                                                }
+                                            },
+                                            "as": "assignment",
+                                            "in": {
+                                                "$mergeObjects": [
+                                                "$$assignment",
+                                                {
+                                                    "tasks": {
+                                                    "$map": {
+                                                        "input": {
+                                                        "$filter": {
+                                                            "input": "$tasks",
+                                                            "as": "task",
+                                                            "cond": {"$eq": ["$$assignment.taskID", "$$task._id"]}
+                                                        }
+                                                        },
+                                                        "as": "task",
+                                                        "in": "$$task"
+                                                    }
+                                                    },
+                                                    "assignedTo": {
+                                                    "$map": {
+                                                        "input": "$$assignment.assignedTo",
+                                                        "as": "assignedToId",
+                                                        "in": {
+                                                        "$let": {
+                                                            "vars": {
+                                                            "member": {
+                                                                "$filter": {
+                                                                "input": "$members",
+                                                                "as": "member",
+                                                                "cond": {"$eq": ["$$member._id", "$$assignedToId"]}
+                                                                }
+                                                            }
+                                                            },
+                                                            "in": {"$arrayElemAt": ["$$member", 0]}
+                                                        }
+                                                        }
+                                                    }
+                                                    }
+                                                }
+                                                ]
+                                            }
+                                            }
+                                        }
+                                        }
+                                    ]
+                                    }
+                                }
+                                },
+                                "teams": {
+                                "$map": {
+                                    "input": {
+                                    "$filter": {
+                                        "input": "$teams",
+                                        "as": "team",
+                                        "cond": {"$eq": ["$$team.projectID", "$$project._id"]}
+                                    }
+                                    },
+                                    "as": "team",
+                                    "in": {
+                                    "$mergeObjects": [
+                                        "$$team",
+                                        {
 
-        assignee_pipeline=[
-          { "$group": {
-              "_id": "$assignedBy",
-              "Assignee": {
-                "$push": {
-                  "_id": "$_id",
-                  "name": "$name"
-                }
-              }
-            }
-          },
-          {
-            "$project": {
-              "_id": 0,
-              "managerID": "$_id",
-              "Assignee": 1
-            }
-          },
-          {"$match": {"managerID": ObjectId(manager_id)}},
-        ]
+                                        "teamLead": {
+                                            "$filter": {
+                                            "input": "$teamMembers",
+                                            "as": "lead",
+                                            "cond": {"$eq": ["$$lead._id", "$$team.leadID"]}
+                                            }
+                                        },
+                                        "teamMembers": {
+                                            "$filter": {
+                                            "input": "$teamMembers",
+                                            "as": "teamMember",
+                                            "cond": {"$eq": ["$$teamMember.teamID", "$$team._id"]}
+                                            }
+                                        }
+                                        }
+                                    ]
+                                    }
+                                }
+                                }
+                            }
+                            ]
+                        }
+                        }
+                    }
+                    }
+                },
+                {"$project": {"_id": 0,"managerID": "$_id","Projects": "$projects",}},
+                {"$project": {"Projects.teams.projectID": 0,"Projects.teams.leadID": 0,"Projects.teams.teamLead.teamID": 0,"Projects.teams.teamLead.role": 0,"Projects.teams.teamMembers.teamID": 0,
+                              "Projects.Assignee.assignmentInstances": 0,"Projects.Assignee.projectID": 0,"Projects.Assignee.assignment.taskID": 0}},
+                {"$match": {"managerID": ObjectId(manager_id)}},
+                ]
 
-        manager_data = list(client.WorkBaseDB.Projects.aggregate(project_pipeline))
-        assignee_data = list(client.TimesheetDB.AssignmentGroup.aggregate(assignee_pipeline))
+        manager_data = list(client.WorkBaseDB.Members.aggregate(project_pipeline))
+        
         # Check if manager data is empty
         if not manager_data:
             return make_response(jsonify({"message": "No Data here yet"}), 200)
-        # if not assignee_data:
-        #     return make_response(jsonify({"message": "No Data here yet"}), 200)
-        # Merge the manager data and assignee data on managerID
-        for i in range(len(manager_data)):
-            for j in range(len(assignee_data)):
-                if manager_data[i]['managerID'] == assignee_data[j]['managerID']:
-                    manager_data[i]['Assignee'] = assignee_data[j]['Assignee']
-                    # pop managerID field
-                    manager_data[i].pop('managerID')
 
         # Convert the employee_sheets cursor object to a JSON object
         manager_json = json.dumps(manager_data, default=str)

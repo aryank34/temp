@@ -110,6 +110,52 @@ def create_new_task():
         # Handle any exceptions and return an error response
         error_message = str(e)
         return make_response(jsonify({'error': error_message}), 500)
+    
+# Define route for creating new task
+@project_manager_bp.route('/projects/tasks/assignment', methods=['POST'])
+@auth.token_auth("/projects/tasks/assignment")
+def create_new_assignment():
+    try:
+        # Get the 'uid' from the request's JSON data
+        # uid = request.json.get("uid")
+        uuid = tokenAuth.token_decode(request.headers.get('Authorization'))['payload']['id']
+        # Get the JSON data sent with the POST request
+        payload = request.get_json()
+        # Access the 'timesheet' field, which is a nested JSON object
+        task_data = payload.get('task')
+
+        # fetch_tasks_response = create_assignment(uuid, task_data)
+
+        # Return the response from the userType function
+        # return fetch_tasks_response
+
+    except Exception as e:
+        # Handle any exceptions and return an error response
+        error_message = str(e)
+        return make_response(jsonify({'error': error_message}), 500)
+
+# Define route for creating new task
+@project_manager_bp.route('/projects/tasks/assigneeGroup', methods=['POST'])
+@auth.token_auth("/projects/tasks/assigneeGroup")
+def create_new_assignmentGroup():
+    try:
+        # Get the 'uid' from the request's JSON data
+        # uid = request.json.get("uid")
+        uuid = tokenAuth.token_decode(request.headers.get('Authorization'))['payload']['id']
+        # Get the JSON data sent with the POST request
+        payload = request.get_json()
+        # Access the 'timesheet' field, which is a nested JSON object
+        task_data = payload.get('task')
+
+        # fetch_tasks_response = create_assigneeGroup(uuid, task_data)
+
+        # Return the response from the userType function
+        # return fetch_tasks_response
+
+    except Exception as e:
+        # Handle any exceptions and return an error response
+        error_message = str(e)
+        return make_response(jsonify({'error': error_message}), 500)
 
 # Define route for creating new task
 @project_manager_bp.route('/projects/tasks/edit', methods=['POST'])

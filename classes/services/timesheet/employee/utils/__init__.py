@@ -94,6 +94,8 @@ def get_timesheets_for_employee(client, employee_id):
                         if task_item:
                             timesheets[i]['employeeSheetInstances'][j]['employeeSheetObject']['Task'] = task_item
 
+        # sort the sheets by their startDate
+        timesheets = sorted(timesheets, key=lambda x: x['Start Date'])
 
         # Convert the employee_sheets cursor object to a JSON object
         timesheets_json = json.dumps(timesheets, default=str)
