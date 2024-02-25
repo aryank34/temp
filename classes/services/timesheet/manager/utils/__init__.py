@@ -54,8 +54,8 @@ def get_timesheets_for_manager(client, manager_id, status=None):
                                         "Last Update Date": "$managerSheetsInstances.lastUpdateDate",
                                         "Sheet Version": "$managerSheetsInstances.version",
                                         "Project": "$assignGroup.projectID",
-                                        "Start Date": "$managerSheets.startDate",
-                                        "End Date": "$managerSheets.endDate",
+                                        "startDate": "$managerSheets.startDate",
+                                        "endDate": "$managerSheets.endDate",
                                         "Status": "$managerSheets.status",
                                         "WorkDay": {
                                             "$arrayToObject": {
@@ -235,11 +235,7 @@ def get_timesheets_for_manager(client, manager_id, status=None):
         if not filtered_timesheets:
             return make_response(jsonify({"message": "No Timesheets here yet"}), 200)
 
-        # sort the sheets by their startDate
-        if status == "Draft" or status == "Upcoming" or status == "Active":
-            startDate = 'Start Date'
-        elif status == "Review":
-            startDate = 'startDate'
+        startDate = 'startDate'
         filtered_timesheets = sorted(filtered_timesheets, key=lambda x: x[startDate])
 
         # return make_response(jsonify({"message": "Working in review"}), 200)
