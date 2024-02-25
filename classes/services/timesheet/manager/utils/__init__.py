@@ -653,6 +653,19 @@ def edit_timesheet(manager_uuid, timesheet):
                 else:
                     return make_response(jsonify({"error": "timesheet 'managerSheetID' data is required"}), 400)
 
+                # check if the timesheet status allows upgradation of status updates
+                timesheets = client.TimesheetDB.ManagerSheets.find_one({"_id": ObjectId(timesheet['managerSheetID'])})
+                if not timesheets:
+                    return make_response(jsonify({"error": "No timesheet found to edit"}), 400)
+                # only draft and upcoming can be edited to update the status
+                if timesheets['status'] == "Active" and timesheet['status'] != "Active":
+                    return make_response(jsonify({"error": "Timesheet is Active, status can not be changed"}), 400)
+                elif timesheets['status'] == "Submitted" and timesheet['status'] != "Submitted":
+                    return make_response(jsonify({"error": "Timesheet is Submitted, status can not be changed"}), 400)
+                elif timesheets['status'] == "Review" and timesheet['status'] != "Review":
+                    return make_response(jsonify({"error": "Timesheet is in Review, status can not be changed"}), 400)
+
+
                 # check if assignGroupID is valid
                 if timesheet['assignGroupID'] is not None:
                     timesheet['assignGroupID'] = ObjectId(timesheet['assignGroupID'])

@@ -271,6 +271,7 @@ def fetch_organization_members(superAdmin_uuid):
     
 def create_projects(admin_uuid, project_data):
     try:
+        
         # Check the connection to the MongoDB server
         client = dbConnectCheck()
         verify = get_WorkAccount(client, admin_uuid)
