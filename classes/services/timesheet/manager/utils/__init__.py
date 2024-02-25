@@ -411,6 +411,8 @@ def edit_data(data,manager_id,client):
         if action not in ["Draft", "Save"]:
             return make_response(jsonify({"error": "Illegal Action for timesheet. Action must be 'Save' or 'Draft'"}), 400)
 
+        # fetch the current status of sheet
+        current_status = client.TimesheetDB.ManagerSheets.find_one({"_id": managerSheetID}, {"status": 1})['status']
         status=""
         success_message=""
         if action == "Draft":
@@ -418,11 +420,14 @@ def edit_data(data,manager_id,client):
             success_message = {"message": "Timesheet saved to Draft successfully"}
         elif action == "Save":
             success_message = {"message": "Timesheet assigned successfully"}
-            currentDate = datetime.now()
-            if (startDate-currentDate<=timedelta(1)):
-                status = "Active"
+            if current_status == "Draft":
+                currentDate = datetime.now()
+                if (startDate-currentDate<=timedelta(1)):
+                    status = "Active"
+                else:
+                    status = "Upcoming"
             else:
-                status = "Upcoming"
+                status = current_status
         
         # Extract other fields
         description = data["description"]
@@ -541,7 +546,7 @@ def return_timesheet(manager_uuid, timesheet):
             client.TimesheetDB.EmployeeSheets.update_one({"_id": timesheet['employeeSheetID']},
                                                          {"$set": {"returnMessage": timesheet['returnMessage'], "status": "Returned"}})
 
-            return make_response(jsonify({"message": "Working"}), 200)
+            # return make_response(jsonify({"message": "Working"}), 200)
             # Return the new timesheet as a JSON response
             return make_response(jsonify({"message": str("Timesheet Returned Successfully")}), 200)    
 
@@ -664,7 +669,14 @@ def edit_timesheet(manager_uuid, timesheet):
                     return make_response(jsonify({"error": "Timesheet is Submitted, status can not be changed"}), 400)
                 elif timesheets['status'] == "Review":
                     return make_response(jsonify({"error": "Timesheet is in Review, status can not be changed"}), 400)
-
+                
+                # check if action is valid
+                if timesheet['action'] is not None:
+                    # action must be 'Save' or 'Draft'
+                    if timesheet['action'] not in ["Save", "Draft"]:
+                        return make_response(jsonify({"error": "Illegal Action for timesheet. Action must be 'Save' or 'Draft'"}), 400)
+                else:
+                    return make_response(jsonify({"error": "'action' data is required"}), 400)
 
                 # check if assignGroupID is valid
                 if timesheet['assignGroupID'] is not None:
@@ -690,9 +702,19 @@ def edit_timesheet(manager_uuid, timesheet):
                 if 'startDate' in timesheet and 'endDate' in timesheet:
                     start = datetime.strptime(timesheet['startDate'], "%Y-%m-%d %H:%M:%S")
                     end = datetime.strptime(timesheet['endDate'], "%Y-%m-%d %H:%M:%S")
+                    # fetch current sheet startDate and endDate from database
+                    current_sheet = client.TimesheetDB.ManagerSheets.find_one({"_id": ObjectId(timesheet['managerSheetID'])}, {"startDate": 1, "endDate": 1, "status": 1})
+                    if not current_sheet:
+                        return make_response(jsonify({"error": "No timesheet found to edit"}), 400)
+                    # if status is Active, then the startDate and endDate can not be changed
+                    if current_sheet['status'] == "Active":
+                        if start != current_sheet['startDate'] or end != current_sheet['endDate']:
+                            return make_response(jsonify({"error": "Timesheet is Active, start and end date can not be changed"}), 400)
+                    
                     curr = datetime.now()
-                    if (start >= end) or (start<=curr) or (end<=curr):
-                        return make_response(jsonify({"error": "timesheet duration data is incorrect"}), 400)
+                    if current_sheet['status'] == "Draft" or current_sheet['status'] == "Upcoming":
+                        if (start >= end) or (start<=curr) or (end<=curr):
+                            return make_response(jsonify({"error": "timesheet duration data is incorrect, update the start/end date"}), 400)
                 else:
                     return make_response(jsonify({"error": "timesheet duration data is required"}), 400)
 
