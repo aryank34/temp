@@ -242,7 +242,6 @@ def get_timesheets_for_manager(client, manager_id, status=None):
         #     startDate = "startDate"
         filtered_timesheets = sorted(filtered_timesheets, key=lambda x: x["startDate"])
 
-        # return make_response(jsonify({"message": "Working in review"}), 200)
         # Convert the manager_sheets cursor object to a JSON object
         timesheets_json = json.dumps(filtered_timesheets, default=str)
         # Parse the JSON string into a Python data structure

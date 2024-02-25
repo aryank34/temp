@@ -227,6 +227,48 @@ def fetch_projects(account_uuid, user_type):
         # If an error occurs, return the error response
         return make_response(jsonify({"error": str(e)}), 500)
 
+def fetch_organization_members(superAdmin_uuid):
+    try:
+        # Check the connection to the MongoDB server
+        client = dbConnectCheck()
+        verify = get_WorkAccount(client, superAdmin_uuid)
+        if not verify.status_code == 200:
+            # If the connection fails, return the error response
+            return verify
+        account_id = verify.json['_id']
+
+        # If the connection is successful
+        if isinstance(client, MongoClient):
+            # build a pipeline to retrieve all members from database
+            members_pipeline = [
+                {"$project": {"_id": 1, "name": 1, "role": 1}},
+                ]
+
+            # Get all the members from the collection
+            members = list(client.WorkBaseDB.Members.aggregate(members_pipeline))
+            # If the members list is not empty
+            if not members:
+                # Return the members list
+                return make_response(jsonify({"error": "No members found"}), 404)
+            
+            # sort members according to role
+            members.sort(key=lambda x: x['role'])
+
+            # Convert the manager_sheets cursor object to a JSON object
+            members_json = json.dumps(members, default=str)
+            # Parse the JSON string into a Python data structure
+            members_data = json.loads(members_json)
+
+            # Return the JSON response as managerSheets, preserve the output format
+            return make_response(jsonify({"members": members_data}), 200)
+            
+        else:
+            # If the connection fails, return the error response
+            return make_response(jsonify({"error": "Failed to connect to the MongoDB server"}), 500)
+    except Exception as e:
+        # If an error occurs, return the error response
+        return make_response(jsonify({"error": str(e)}), 500)
+    
 def create_projects(admin_uuid, project_data):
     try:
         # Check the connection to the MongoDB server

@@ -75,3 +75,37 @@ def verify_attribute(collection, key, attr_value):
     except Exception as e:
         # If an error occurs, return the error response
         return make_response(jsonify({"error": str(e)}), 500)
+    
+def isSuperAdmin(account_uuid):
+    """
+    This function checks if the user is a super admin.
+    It takes a user ID as input.
+    It returns True if the user is a super admin, or an error response if the user is not a super admin or if an error occurs.
+    """
+    try:
+        # Check the connection to the MongoDB server
+        client = dbConnectCheck()
+
+        if isinstance(client, MongoClient):
+
+            # correct data field formats for timesheet
+            # check if the managerID is valid
+            verify = get_WorkAccount(client, account_uuid)
+            if not verify.status_code == 200:
+                # If the connection fails, return the error response
+                return verify
+            account_id= verify.json['_id']
+
+            response = client.WorkBaseDB.Members.find_one({"_id": ObjectId(account_id), "superAdmin": True})
+            if response:
+                return make_response(jsonify({"response": True}), 200)
+            else:
+                return make_response(jsonify({"response": False}), 200)
+
+        else:
+            # If the connection fails, return the error response
+            return make_response(jsonify({"error": "Failed to connect to the MongoDB server"}), 500)
+
+    except Exception as e:
+        # If an error occurs, return the error response
+        return make_response(jsonify({"error": str(e)}), 500)
