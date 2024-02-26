@@ -832,6 +832,10 @@ def create_timesheet(manager_uuid, timesheet):
                     if not verify.status_code == 200:
                         # If the connection fails, return the error response
                         return verify
+                    # check if manager has access to this project
+                    projects = client.WorkBaseDB.Projects.find_one({'_id': ObjectId(timesheet['projectID'])},{"_id": 1,"managerID": 1})
+                    if manager_id != projects['managerID']:
+                        return make_response(jsonify({"error": "Manager doesnt has access to this project"}), 400)
                 else:
                     return make_response(jsonify({"error": "Project is required to create Timesheet"}), 400)
                 
