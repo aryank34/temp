@@ -53,20 +53,20 @@ class tokenAuth:
                     except jwt.DecodeError:
                         return make_response({"ERROR":"Wrong Token"}, 401)                    
 
-                    #extract role id from token - gives an array
-                    role_id = jwt_decoded['payload']['Role']['role_id'] #for now i have taken the first element
                     # print(role_id)
                     # -----------------------------------------------------------------CORRECT BY MANNY and YOGI
                     endpoint_access_role_ids = self.endpointData.find_one({"endPoint":endpoint},{"_id":0,"role_id":1})    
                     if endpoint_access_role_ids == None:
                         return make_response({"ERROR":"Unknown Endpoint"}, 404)
                     #check if the query returns something or not
+                    #extract role id from token - gives an array
+                    role_id = jwt_decoded['payload']['Role']['role_id'] #for now i have taken the first element
                     role_list = list(role_id)
                     if (len(endpoint_access_role_ids)>0):
                         allowed_roles = endpoint_access_role_ids['role_id']
                         # print(allowed_roles)
-                        for role_id in role_list:
-                            if role_id in allowed_roles:
+                        for roleID in role_list:
+                            if roleID in allowed_roles:
                                 return func(*args, **kwargs)
                         return make_response({"ERROR":"Invalid Role"}, 404)
                     else:
@@ -90,6 +90,8 @@ class tokenAuth:
                     #         return make_response({"ERROR":"Invalid Role"}, 404)
                     # else:
                     #     return make_response({"ERROR":"Unknown Endpoint"}, 404)
+                else:
+                    return make_response({"ERROR":"INVALID TOKEN"}, 401)
             return inner2
         return inner1
     

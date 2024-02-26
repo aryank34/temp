@@ -836,17 +836,18 @@ def create_timesheet(manager_uuid, timesheet):
                     return make_response(jsonify({"error": "Project is required to create Timesheet"}), 400)
                 
                 # check if assignGroupID is valid
-                if timesheet['assignGroupID'] is not None:
+                if 'assignGroupID' in timesheet:
                     timesheet['assignGroupID'] = ObjectId(timesheet['assignGroupID'])
-                    verify = verify_attribute(collection=client.TimesheetDB.AssignmentGroup, key="_id",attr_value=timesheet['assignGroupID'])
+                    verify = verify_attribute(collection=client.WorkBaseDB.AssignmentGroup, key="_id",attr_value=timesheet['assignGroupID'])
                     if not verify.status_code == 200:
                         # If the connection fails, return the error response
                         return verify
                 else:
                     return make_response(jsonify({"error": "Assignee Group is required to create Timesheet"}), 400)
 
+                # return make_response(jsonify({"success": True}), 200)
                 # check if assignment group is part of project
-                verify = verify_attribute(collection=client.TimesheetDB.AssignmentGroup, key="projectID",attr_value=timesheet['projectID'])
+                verify = verify_attribute(collection=client.WorkBasetDB.AssignmentGroup, key="projectID",attr_value=timesheet['projectID'])
                 if not verify:
                     return make_response(jsonify({"error": "Assignee Group is not associated with the Project"}), 400)
                     
