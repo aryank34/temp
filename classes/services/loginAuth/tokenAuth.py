@@ -54,28 +54,42 @@ class tokenAuth:
                         return make_response({"ERROR":"Wrong Token"}, 401)                    
 
                     #extract role id from token - gives an array
-                    role_id = jwt_decoded['payload']['Role']['role_id'][0] #for now i have taken the first element
+                    role_id = jwt_decoded['payload']['Role']['role_id'] #for now i have taken the first element
                     # print(role_id)
-
-                    #get the array of roles from mongodb to check whether this user is allowed to access the route
-                
-                    endpoint_access_role_ids = self.endpointData.find_one({"endPoint":endpoint},{"_id":0,"role_id":1})
+                    # -----------------------------------------------------------------CORRECT BY MANNY and YOGI
+                    endpoint_access_role_ids = self.endpointData.find_one({"endPoint":endpoint},{"_id":0,"role_id":1})    
                     if endpoint_access_role_ids == None:
                         return make_response({"ERROR":"Unknown Endpoint"}, 404)
-                    # print(endpoint_access_role_ids)
-
                     #check if the query returns something or not
+                    role_list = list(role_id)
                     if (len(endpoint_access_role_ids)>0):
                         allowed_roles = endpoint_access_role_ids['role_id']
                         # print(allowed_roles)
-                        if role_id in allowed_roles:
-                            return func(*args, **kwargs)
-                        else:
-                            return make_response({"ERROR":"Invalid Role"}, 404)
+                        for role_id in role_list:
+                            if role_id in allowed_roles:
+                                return func(*args, **kwargs)
+                        return make_response({"ERROR":"Invalid Role"}, 404)
                     else:
                         return make_response({"ERROR":"Unknown Endpoint"}, 404)
-                else:
-                    return make_response({"ERROR":"INVALID TOKEN"}, 401)
+                    # ----------------------------------------------------------------
+
+                    #get the array of roles from mongodb to check whether this user is allowed to access the route
+                
+                    # endpoint_access_role_ids = self.endpointData.find_one({"endPoint":endpoint},{"_id":0,"role_id":1})
+                    # if endpoint_access_role_ids == None:
+                    #     return make_response({"ERROR":"Unknown Endpoint"}, 404)
+                    # # print(endpoint_access_role_ids)
+
+                    # #check if the query returns something or not
+                    # if (len(endpoint_access_role_ids)>0):
+                    #     allowed_roles = endpoint_access_role_ids['role_id']
+                    #     # print(allowed_roles)
+                    #     if role_id in allowed_roles:
+                    #         return func(*args, **kwargs)
+                    #     else:
+                    #         return make_response({"ERROR":"Invalid Role"}, 404)
+                    # else:
+                    #     return make_response({"ERROR":"Unknown Endpoint"}, 404)
             return inner2
         return inner1
     
