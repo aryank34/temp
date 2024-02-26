@@ -206,7 +206,7 @@ def edit_timesheet(employee_uuid, timesheet):
                         if current_sheet['employeeSheetInstances'][len(current_sheet['employeeSheetInstances'])-1]['employeeSheetObject']['workDay'][day]["work"] == False:
                             return make_response(jsonify({"error": "Cannot update a non-work day"}), 400)
                         if day not in acceptable_days:
-                            return make_response(jsonify({"error": "Cannot update a day's work more than one day after"}), 400)
+                            return make_response(jsonify({"error": "You can only fill details of Today and Yesterday"}), 400)
 
                     # else, update the hour and comment for the latest instance of employeeSheetInstance at employeeSheetObject
                     [client.TimesheetDB.EmployeeSheets.update_one({"_id": timesheet['employeeSheetID'], "employeeSheetInstances": {"$elemMatch": {"version": current_sheet['employeeSheetInstances'][-1]["version"]}}}, {"$set": {"employeeSheetInstances.$.employeeSheetObject.workDay."+day: timesheet['workDay'][day]}}) for day in days_of_week]
@@ -214,10 +214,12 @@ def edit_timesheet(employee_uuid, timesheet):
                 elif current_sheet['status'] == "Returned":
                     # get list of workdays which were updated
                     updated_days = [day for day in timesheet["workDay"] if timesheet["workDay"][day]['hour'] != current_sheet['employeeSheetInstances'][len(current_sheet['employeeSheetInstances'])-1]['employeeSheetObject']['workDay'][day]['hour']]
+                    updated_comments = [day for day in timesheet["workDay"] if timesheet["workDay"][day]['comment'] != current_sheet['employeeSheetInstances'][len(current_sheet['employeeSheetInstances'])-1]['employeeSheetObject']['workDay'][day]['comment']]
                     updated_overall_days = [day for day in timesheet["workDay"] if timesheet["workDay"][day] != current_sheet['employeeSheetInstances'][len(current_sheet['employeeSheetInstances'])-1]['employeeSheetObject']['workDay'][day]]
                     if len(updated_overall_days) == 0:
                         return make_response(jsonify({"error": "No workDay details updated"}), 400)
-
+                    elif len(updated_days) == 0 and len(updated_comments) !=0:
+                        return make_response(jsonify({"error": "Comments added successfully"}), 200)
                     # check if all updated days in original timesheet have work set to True
                     for day in updated_days:
                         if current_sheet['employeeSheetInstances'][len(current_sheet['employeeSheetInstances'])-1]['employeeSheetObject']['workDay'][day]["work"] == False:
@@ -230,7 +232,7 @@ def edit_timesheet(employee_uuid, timesheet):
                                                                             "status": "Reviewing"}}) for day in days_of_week]
 
                 else:
-                    return make_response(jsonify({"error": "timesheet 'status' data is incorrect"}), 400)
+                    return make_response(jsonify({"error": "Status of timesheet is incorrect"}), 400)
                 
                 # after successful action, return message Day's work update successful
                 return make_response(jsonify({"message": "Day's work update successful"}), 200)
