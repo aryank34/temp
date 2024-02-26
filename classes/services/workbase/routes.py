@@ -24,7 +24,7 @@ def get_projects():
         # Call the userType function from the utils module
         user_type = userType(uuid).json['userType']
         # Call the userType function from the utils module
-        fetch_projects_response = fetch_projects(uuid, user_type, superAdmin)
+        fetch_projects_response = fetch_projects(account_uuid= uuid, user_type=user_type, superAdmin=superAdmin)
 
         # Return the response from the userType function
         return fetch_projects_response
@@ -100,27 +100,58 @@ def create_new_team():
         return make_response(jsonify({'error': error_message}), 500)
 
 # Define route for creating new task
-@project_manager_bp.route('/projects/tasks/create', methods=['POST'])
+@project_manager_bp.route('/projects/tasks/create', methods=['GET', 'POST'])
 @auth.token_auth("/projects/tasks/create")
 def create_new_task():
     try:
-        # Get the 'uid' from the request's JSON data
-        # uid = request.json.get("uid")
-        uuid = tokenAuth.token_decode(request.headers.get('Authorization'))['payload']['id']
-        # Get the JSON data sent with the POST request
-        payload = request.get_json()
-        # Access the 'timesheet' field, which is a nested JSON object
-        task_data = payload.get('task')
+        if request.method == 'POST':
+            # Get the 'uid' from the request's JSON data
+            # uid = request.json.get("uid")
+            uuid = tokenAuth.token_decode(request.headers.get('Authorization'))['payload']['id']
+            # Get the JSON data sent with the POST request
+            payload = request.get_json()
+            # Access the 'timesheet' field, which is a nested JSON object
+            task_data = payload.get('task')
 
-        fetch_tasks_response = create_tasks(uuid, task_data)
+            fetch_tasks_response = create_tasks(uuid, task_data)
 
-        # Return the response from the userType function
-        return fetch_tasks_response
-
+            # Return the response from the userType function
+            return fetch_tasks_response
+        elif request.method == 'GET':
+            # only superAdmin can get members data to create projects
+            uuid = tokenAuth.token_decode(request.headers.get('Authorization'))['payload']['id']
+            superAdmin = bool(isSuperAdmin(uuid).json['response'])
+            user_type = userType(uuid).json['userType']
+            if superAdmin:
+                fetch_organization_members_response = fetch_projects(account_uuid= uuid, user_type= 'manager', superAdmin= superAdmin)
+            elif user_type == 'Manager':
+                fetch_organization_members_response = fetch_projects(account_uuid= uuid, userType = 'manager')
+            else:
+                fetch_organization_members_response = make_response(jsonify({'error': 'You are not authorized to create new projects'}), 401)
+            return fetch_organization_members_response
     except Exception as e:
         # Handle any exceptions and return an error response
         error_message = str(e)
         return make_response(jsonify({'error': error_message}), 500)
+
+    # try:
+    #     # Get the 'uid' from the request's JSON data
+    #     # uid = request.json.get("uid")
+    #     uuid = tokenAuth.token_decode(request.headers.get('Authorization'))['payload']['id']
+    #     # Get the JSON data sent with the POST request
+    #     payload = request.get_json()
+    #     # Access the 'timesheet' field, which is a nested JSON object
+    #     task_data = payload.get('task')
+
+    #     fetch_tasks_response = create_tasks(uuid, task_data)
+
+    #     # Return the response from the userType function
+    #     return fetch_tasks_response
+
+    # except Exception as e:
+    #     # Handle any exceptions and return an error response
+    #     error_message = str(e)
+    #     return make_response(jsonify({'error': error_message}), 500)
     
 # Define route for creating new task
 @project_manager_bp.route('/projects/tasks/assignment', methods=['POST'])
