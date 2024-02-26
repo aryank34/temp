@@ -1,7 +1,7 @@
 from flask import Blueprint, request, make_response
 from ..loginAuth.tokenAuth import tokenAuth
 from .dbConnection import addSalesRecord, getAllSalesRecords, getDropDownData, editSalesRecord, deleteSalesRecord, getAllYears, downloadExcel
-from .dbConnection import displayData, addData, editData, deleteData, transferCurrentToSale, dropDownData
+from .dbConnection import displayData, addData, editData, deleteData, transferCurrentToSale, dropDownData, getExcel
 auth = tokenAuth()
 
 salesPipelineView = Blueprint('salesPipelineView',__name__)
@@ -50,8 +50,11 @@ def transferRecord(year):
         #from current to sale
         return transferCurrentToSale(request.json, int(year))
 
-
-
+@salesPipelineView.route("/dashboard/salespipeline/<year>/excel", methods=['GET'])
+@auth.token_auth("/dashboard/salespipeline/<year>/excel")
+def excelData(year):
+    if request.method == 'GET':
+        return getExcel(int(year))
 
 
 

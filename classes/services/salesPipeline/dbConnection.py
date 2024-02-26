@@ -301,7 +301,7 @@ def calculateSales(year, type, data):
             current_total_pipeline = sum(numeric_values)
             # print(type)
             # f"{result['Current_Year_Total']:,}"
-            return f"{round(current_total_pipeline,2):,}"
+            return {"Total_Pipeline":f"{round(current_total_pipeline,2):,}"}
         elif type == 'Sale':
             current_total_pipeline = sum(numeric_values)
             prior_total_pipeline = 0
@@ -389,6 +389,226 @@ def dropDownData(year, type):
         return make_response({"message":data}, 200)
     except Exception as e:
         return make_response({"ERROR":str(e)}, 500)
+    
+    
+def getExcel(year):
+    try:
+        output = io.BytesIO()
+        workbook = xlsxwriter.Workbook(output)
+
+        current_year = year
+        prior_year = year-1
+
+        result = list(sp.list_collection_names())
+        # print(result)
+        collection_name = ""
+        for c in result:
+            if c.startswith("Year") and c.endswith("Data"):
+                c = c.replace("Year","")
+                c = c.replace("Data","")
+                # years.append(int(c))
+                if int(c) == current_year:
+                    collection_name = f"Year{c}Data"
+                    # print(collection_name)
+                    break
+
+        if collection_name == "":
+            return make_response({"ERROR":"No data for this year error"}, 404)
+
+
+        #current pipeline for current year
+        type = 'Current'
+        current_data = list(sp[collection_name].find({'Type':type},{"_id":0,"Type":0}))
+        # print(current_data)
+        worksheet = makeExcel(workbook, current_data, type, current_year,"")
+
+        type = 'Sale'
+        sale_data = list(sp[collection_name].find({'Type':type},{"_id":0,"Type":0}))
+        worksheet = makeExcel(workbook, sale_data, type, current_year,"")
+
+        collection_name = ""
+        for c in result:
+            if c.startswith("Year") and c.endswith("Data"):
+                c = c.replace("Year","")
+                c = c.replace("Data","")
+                # years.append(int(c))
+                if int(c) == prior_year:
+                    collection_name = f"Year{c}Data"
+                    # print(collection_name)
+                    break
+
+        if collection_name != "":
+            type = 'Sale'
+            sale_data = list(sp[collection_name].find({'Type':type},{"_id":0,"Type":0}))
+            # print(current_data)
+            worksheet = makeExcel(workbook, sale_data, type, prior_year, "Archieved")
+
+        workbook.close()
+                
+        output.seek(0)
+        return send_file(
+            output,
+            mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            as_attachment=True,
+            download_name=f"SalesPipeline{year}.xlsx",
+        )
+    except Exception as e:
+        return make_response({"ERROR":str(e)}, 500)
+    
+def makeExcel(workbook, data, type, year, message):
+    # print(type)
+    if message == "":
+        worksheet = workbook.add_worksheet(f"{type} Pipeline")
+    else:
+        worksheet = workbook.add_worksheet(f"{message} Pipeline")
+    #cell formating
+    blue_text_wrap_format = workbook.add_format()
+    blue_text_wrap_format.set_text_wrap(True)
+    blue_text_wrap_format.set_bg_color('#000099')
+    blue_text_wrap_format.set_font_color('#FFFFFF')
+    blue_text_wrap_format.set_align('center')
+    blue_text_wrap_format.set_bold(True)
+
+    bold_centre_format = workbook.add_format()
+    bold_centre_format.set_bold(True)
+    bold_centre_format.set_align('center')
+
+    right_format = workbook.add_format()
+    right_format.set_align('right')
+
+    #enter data to excel
+    worksheet.write(0,0, "ENCRYPTION CONSULTING, LLC",bold_centre_format)
+    worksheet.write(1,0, f"31-12-{year}", bold_centre_format)
+    worksheet.write(2,0, f"{type} Pipeline", bold_centre_format)
+
+    #set the column width
+    if type == 'Current':
+        worksheet.set_column(0,0, 30)
+        worksheet.set_column(1,1, 20)
+        worksheet.set_column(2,2, 15)
+        worksheet.set_column(3,3, 10)
+        worksheet.set_column(4,4, 15)
+        worksheet.set_column(5,5, 15)
+        worksheet.set_column(6,6, 20)
+        worksheet.set_column(7,7, 15)
+        worksheet.set_column(8,8, 20)
+        worksheet.set_column(9,9, 18)
+        worksheet.set_column(10,10, 18)
+        worksheet.set_column(11,11, 30)
+
+        worksheet.write(0,8, "Total Pipeline", bold_centre_format)
+
+        calculations = calculateSales(year, type, data)
+        worksheet.write(0,9, calculations['Total_Pipeline'], right_format)
+
+        #table headings
+        worksheet.write(7,0, "Customer", blue_text_wrap_format)
+        worksheet.write(7,1, "Type of Project", blue_text_wrap_format)
+        worksheet.write(7,2, "Channel", blue_text_wrap_format)
+        worksheet.write(7,3, "Reseller", blue_text_wrap_format)
+        worksheet.write(7,4, "EC Point of Contact", blue_text_wrap_format)
+        worksheet.write(7,5, "Cient Point of Contact", blue_text_wrap_format)
+        worksheet.write(7,6, "Client POC Email", blue_text_wrap_format)
+        worksheet.write(7,7, "Stage", blue_text_wrap_format)
+        worksheet.write(7,8, "Project Size", blue_text_wrap_format)
+        worksheet.write(7,9, "Chances of Winning", blue_text_wrap_format)
+        worksheet.write(7,10, "Won/Lost", blue_text_wrap_format)
+        worksheet.write(7,11, "Notes on Follow", blue_text_wrap_format)
+
+        last_row = 9
+        #enter the data
+        for index, entry in enumerate(data):
+            worksheet.write(8+index, 0, entry['Customer'])
+            worksheet.write(8+index, 1, entry['TypeOfProject'])
+            worksheet.write(8+index, 2, entry['Channel'])
+            worksheet.write(8+index, 3, entry['Reseller'])
+            worksheet.write(8+index, 4, entry['EC_PointOfContact'])
+            worksheet.write(8+index, 5, entry['Client_PointOfContact'])
+            worksheet.write(8+index, 6, entry['Client_POC_Email'])
+            worksheet.write(8+index, 7, entry['Stage'])
+            worksheet.write(8+index, 8, entry['ProjectSize'])
+            worksheet.write(8+index, 9, entry['ChancesOfWinning'])
+            worksheet.write(8+index, 10, entry['WonLost'])
+            worksheet.write(8+index, 11, entry['NotesOnFollow'])
+            last_row = 8+index
+        for col in range(12):  # Columns length
+            worksheet.write(last_row+2, col, None, blue_text_wrap_format)
+    elif type == 'Sale':
+        worksheet.set_column(0,0, 30)
+        worksheet.set_column(1,1, 20)
+        worksheet.set_column(2,2, 15)
+        worksheet.set_column(3,3, 10)
+        worksheet.set_column(4,4, 15)
+        worksheet.set_column(5,5, 15)
+        worksheet.set_column(6,6, 20)
+        worksheet.set_column(7,7, 15)
+        worksheet.set_column(8,8, 20)
+        worksheet.set_column(9,9, 18)
+        worksheet.set_column(10,10, 18)
+        worksheet.set_column(11,11, 18)
+        worksheet.set_column(12,12, 20)
+        worksheet.set_column(13,13, 18)
+        worksheet.set_column(14,14, 30)
+
+        worksheet.write(0,8, "Current Year Project Total:", bold_centre_format)
+        worksheet.write(1,8, "Prior Year Project Total:",bold_centre_format)
+        worksheet.write(2,8, "Current Year Target Goal:",bold_centre_format)
+        worksheet.write(3,8, "Goal Achievement:",bold_centre_format)
+
+        calculations = calculateSales(year, type, data)
+        worksheet.write(0,9, calculations['Current_Year_Total'], right_format)
+        worksheet.write(1,9, calculations['Prior_Year_Total'], right_format)
+        worksheet.write(2,9, calculations['Current_Year_Target_Goal'], right_format)
+        worksheet.write(3,9, calculations['Goal_Achievement'], right_format)
+        worksheet.write(3,10, calculations['Goal_Achievement_Message'], right_format)
+
+        #table headings
+        worksheet.write(7,0, "Customer", blue_text_wrap_format)
+        worksheet.write(7,1, "Type of Project", blue_text_wrap_format)
+        worksheet.write(7,2, "Channel", blue_text_wrap_format)
+        worksheet.write(7,3, "Reseller", blue_text_wrap_format)
+        worksheet.write(7,4, "EC Point of Contact", blue_text_wrap_format)
+        worksheet.write(7,5, "Date Sold", blue_text_wrap_format)
+        worksheet.write(7,6, "Quarter", blue_text_wrap_format)
+        worksheet.write(7,7, "Year", blue_text_wrap_format)
+        worksheet.write(7,8, "Stage", blue_text_wrap_format)
+        worksheet.write(7,9, "Project Size", blue_text_wrap_format)
+        worksheet.write(7,10, "Invoice Issue Date", blue_text_wrap_format)
+        worksheet.write(7,11, "Payment Terms", blue_text_wrap_format)
+        worksheet.write(7,12, "Delinquent Payment", blue_text_wrap_format)
+        worksheet.write(7,13, "Payment Status", blue_text_wrap_format)
+        worksheet.write(7,14, "Notes on Follow", blue_text_wrap_format)
+
+        last_row = 0
+        #enter the data
+        for index, entry in enumerate(data):
+            worksheet.write(8+index, 0, entry['Customer'])
+            worksheet.write(8+index, 1, entry['TypeOfProject'])
+            worksheet.write(8+index, 2, entry['Channel'])
+            worksheet.write(8+index, 3, entry['Reseller'])
+            worksheet.write(8+index, 4, entry['EC_PointOfContact'])
+            worksheet.write(8+index, 5, entry['DateSold'])
+            worksheet.write(8+index, 6, entry['Quarter'])
+            worksheet.write(8+index, 7, entry['Year'])
+            worksheet.write(8+index, 8, entry['Stage'])
+            worksheet.write(8+index, 9, entry['ProjectSize'])
+            worksheet.write(8+index, 10, entry['InvoiceIssueDate'])
+            worksheet.write(8+index, 11, entry['PaymentTerms'])
+            worksheet.write(8+index, 12, entry['DelinquentTerms'])
+            worksheet.write(8+index, 13, entry['PaymentStatus'])
+            worksheet.write(8+index, 14, entry['NotesOnFollow'])
+            last_row = 8+index
+
+        for col in range(15):  # Columns length
+            worksheet.write(last_row+2, col, None, blue_text_wrap_format)
+
+
+
+    return worksheet
+
+
+#--------------------------------------------------------------------------------
+
 
 
 #--------------------------------------------------------------------------------
@@ -684,7 +904,6 @@ def updateCalculations(year, data):
         salespipeline.CalculationData.update_one({'year':year},result)
     except Exception as e:
         return make_response({"ERROR":str(e)}, 500)
-    
 
 def downloadExcel():
     try:
@@ -718,7 +937,6 @@ def downloadExcel():
         # return make_response({"message":'true'}, 200)
     except Exception as e:
         return make_response({"ERROR":str(e)}, 500)
-    
 
 def createExcel(workbook, data, year):
 
