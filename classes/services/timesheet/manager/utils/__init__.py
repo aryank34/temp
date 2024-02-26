@@ -329,11 +329,6 @@ def store_data(data,manager_id,client):
             success_message = {"message": "Timesheet saved to Draft successfully"}
         elif action == "Save":
             success_message = {"message": "Timesheet assigned successfully"}
-            currentDate = datetime.now()
-            if (startDate-currentDate<=timedelta(1)):
-                status = "Active"
-            else:
-                status = "Upcoming"
         
         description = data["description"]
 
@@ -383,6 +378,12 @@ def store_data(data,manager_id,client):
         with ThreadPoolExecutor(max_workers=10) as executor:
             futures = []
             for duration in broken_durations:
+                if action == 'Save':
+                    currentDate = datetime.now()
+                    if (duration['startDate']-currentDate<=timedelta(1)):
+                        status = "Active"
+                    else:
+                        status = "Upcoming"
                 args = {'duration': duration, 'projectID': projectID, 'workDay': workDay, 'description': description, 'status': status, 'assignGroupID': assignGroupID, 'manager_id': manager_id}
                 futures.append(executor.submit(store_timesheet_object, args))
 
@@ -422,7 +423,7 @@ def edit_data(data,manager_id,client):
             success_message = {"message": "Timesheet assigned successfully"}
             if current_status == "Draft":
                 currentDate = datetime.now()
-                if (startDate-currentDate<=timedelta(1)):
+                if (startDate-currentDate<timedelta(1)):
                     status = "Active"
                 else:
                     status = "Upcoming"
@@ -663,7 +664,7 @@ def edit_timesheet(manager_uuid, timesheet):
                 if not timesheets:
                     return make_response(jsonify({"error": "No timesheet found to edit"}), 400)
                 # only draft and upcoming can be edited to update the status
-                if timesheets['status'] == "Active" and timesheet['action'] != "Draft":
+                if timesheets['status'] == "Active" and timesheet['action'] == "Draft":
                     return make_response(jsonify({"error": "Timesheet is Active, status can not be changed"}), 400)
                 elif timesheets['status'] == "Submitted":
                     return make_response(jsonify({"error": "Timesheet is Submitted, status can not be changed"}), 400)
@@ -713,7 +714,7 @@ def edit_timesheet(manager_uuid, timesheet):
                     
                     curr = datetime.now()
                     if current_sheet['status'] == "Draft" or current_sheet['status'] == "Upcoming":
-                        if (start >= end) or (start<=curr) or (end<=curr):
+                        if (start >= end) or (start<curr) or (end<=curr):
                             return make_response(jsonify({"error": "timesheet duration data is incorrect, update the start/end date"}), 400)
                 else:
                     return make_response(jsonify({"error": "timesheet duration data is required"}), 400)
@@ -860,7 +861,7 @@ def create_timesheet(manager_uuid, timesheet):
                     start = datetime.strptime(timesheet['startDate'], "%Y-%m-%d %H:%M:%S")
                     end = datetime.strptime(timesheet['endDate'], "%Y-%m-%d %H:%M:%S")
                     curr = datetime.now()
-                    if (start >= end) or (start<=curr) or (end<=curr):
+                    if (start >= end) or (start<curr) or (end<=curr):
                         return make_response(jsonify({"error": "Timesheet duration is incorrect"}), 400)
                 else:
                     return make_response(jsonify({"error": "Timesheet start/end date is required"}), 400)
