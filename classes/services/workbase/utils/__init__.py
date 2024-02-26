@@ -8,7 +8,6 @@ from ...connectors.dbConnector import dbConnectCheck, get_WorkAccount, verify_at
 from ...timesheet.utils import userType
 from ...workbase.models import Assignment, Task, Team, Project, Job
 from ...timesheet.models import AssignmentGroup, AssignmentInstance
-
 # Function to determine the user type based on the account ID
 def fetch_projects(account_uuid, user_type, superAdmin):
     try: 
