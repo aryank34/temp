@@ -45,7 +45,7 @@ uri = mongo_host
 client = MongoClient(uri, server_api=ServerApi('1'), UuidRepresentation="standard")
 db = client.sample_employee
 employeeData = client.sample_employee.employeeData
-userProvisioningData = client.sample_employee.UserProvisioningData
+# userProvisioningData = client.sample_employee.UserProvisioningData
 fs = GridFS(db)  
 fs = GridFS(db, collection='employeeData')
 
@@ -54,35 +54,37 @@ def checkUserValidity(id):
         # print(UUID(uid))
         #get the user by matching the uuid from db
         # user = userProvisioningData.find_one({'id':UUID(uid)},{'_id':0,'Name':1,'id':1})
-        user = employeeData.find_one({'id':UUID(id)},{'_id':0,'FirstName':1,'LastName':1,'id':1,"Role":1})
+        user = employeeData.find_one({'id':UUID(id)},{'_id':0,'FirstName':1,'LastName':1,'id':1,"Role":1,"status":1})
+        if user['status'] == 'Active':
+            user['id'] = str(user['id']) #uuid cant be sent directly, convert to string first
+            # print(user)
 
-        user['id'] = str(user['id']) #uuid cant be sent directly, convert to string first
-        # print(user)
+            #create a token
 
-        #create a token
+            #set expiry time of token
+            exp_time = datetime.now() + timedelta(days=1) #1 day expiry time
+            exp_epoch_time = int(exp_time.timestamp())
+            # print(exp_epoch_time)
 
-        #set expiry time of token
-        exp_time = datetime.now() + timedelta(days=1) #1 hour expiry time
-        exp_epoch_time = int(exp_time.timestamp())
-        # print(exp_epoch_time)
+            #payload
+            payload = {
+                "payload": user,
+                "exp": exp_epoch_time
+            }
+            # print(payload)
 
-        #payload
-        payload = {
-            "payload": user,
-            "exp": exp_epoch_time
-        }
-        # print(payload)
+            #secret key
+            secret = os.environ.get('SECRET_KEY')
+            algo = os.environ.get('ALGORITHM')
+            # print(algo)
 
-        #secret key
-        secret = os.environ.get('SECRET_KEY')
-        algo = os.environ.get('ALGORITHM')
-        # print(algo)
+            #jwtoken
+            jwtoken = jwt.encode(payload, secret, algorithm=algo)
+            # print(jwt.encode(payload, secret, algorithm=algo))
 
-        #jwtoken
-        jwtoken = jwt.encode(payload, secret, algorithm=algo)
-        # print(jwt.encode(payload, secret, algorithm=algo))
-
-        return make_response({"token":jwtoken}, 200)
+            return make_response({"token":jwtoken}, 200)
+        elif user['status'] == 'Non-Active':
+            return make_response({"ERROR":"User is Not-Active"})
 
     except Exception as e:
         # print(e)
