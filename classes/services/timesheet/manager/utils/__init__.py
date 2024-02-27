@@ -380,7 +380,8 @@ def store_data(data,manager_id,client):
             for duration in broken_durations:
                 if action == 'Save':
                     currentDate = datetime.now()
-                    if (duration['startDate']-currentDate<=timedelta(1)):
+                    startDate = datetime.strptime(duration['startDate'], '%Y-%m-%d %H:%M:%S')
+                    if (startDate-currentDate<=timedelta(1)):
                         status = "Active"
                     else:
                         status = "Upcoming"
@@ -413,7 +414,7 @@ def edit_data(data,manager_id,client):
             return make_response(jsonify({"error": "Illegal Action for timesheet. Action must be 'Save' or 'Draft'"}), 400)
 
         # fetch the current status of sheet
-        current_status = client.TimesheetDB.ManagerSheets.find_one({"_id": managerSheetID}, {"status": 1})['status']
+        current_status = str(client.TimesheetDB.ManagerSheets.find_one({"_id": managerSheetID}, {"status": 1})['status'])
         status=""
         success_message=""
         if action == "Draft":
@@ -428,6 +429,8 @@ def edit_data(data,manager_id,client):
                 else:
                     status = "Upcoming"
             else:
+                # return make_response(jsonify({"message": status}),200)
+                # return make_response(jsonify
                 status = current_status
         
         # Extract other fields
@@ -451,15 +454,15 @@ def edit_data(data,manager_id,client):
         # store the current state of the ManagerSheet for comparison
         current_managerSheet = client.TimesheetDB.ManagerSheets.find_one({"_id": managerSheetID})
         # if status is Draft, then update all fields
-        if status == "Draft":
+        if current_status == "Draft":
             # update fields in database
             client.TimesheetDB.ManagerSheets.update_one({"_id": managerSheetID}, {"$set": {"projectID": projectID, "startDate": startDate, "endDate": endDate, "workDay": workDay, "description": description, "status": status, "assignGroupID": assignGroupID}})
         # Upcoming status can edit all fields except assignGroupID
-        elif status == "Upcoming":
+        elif current_status == "Upcoming":
             # update fields in database
             client.TimesheetDB.ManagerSheets.update_one({"_id": managerSheetID}, {"$set": {"projectID": projectID, "startDate": startDate, "endDate": endDate, "workDay": workDay, "description": description, "status": status}})
         # Active status can only projectID, workDay, and description
-        elif status == "Active":
+        elif current_status == "Active":
             # update fields in database
             client.TimesheetDB.ManagerSheets.update_one({"_id": managerSheetID}, {"$set": {"projectID": projectID, "workDay": workDay, "description": description}})
         else:
@@ -468,6 +471,7 @@ def edit_data(data,manager_id,client):
         # store the updated state of the ManagerSheet for comparison
         updated_managerSheet = client.TimesheetDB.ManagerSheets.find_one({"_id": managerSheetID})
         
+        # return make_response(jsonify({"message": {"status": updated_managerSheet['status'], "current_status": current_status}}),200)
         # compare current_managerSheet with updated sheet and check if anything is changed or not
         if (current_managerSheet['projectID'] == updated_managerSheet['projectID'] 
             and current_managerSheet['startDate'] == updated_managerSheet['startDate'] 
