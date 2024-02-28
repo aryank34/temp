@@ -212,170 +212,170 @@ def update_status_timesheets():
         # If an error occurs, log the error message
         logging.error("Error updating status of timesheets: ",type(e).__name__, ":", str(e))
 
-# Function to store employee sheets in the database
-def store_employee_sheets(data, client):
-    try:
-        logging.info("Storing employee sheets in the database...")
+# # Function to store employee sheets in the database
+# def store_employee_sheets(data, client):
+#     try:
+#         logging.info("Storing employee sheets in the database...")
         
-        # Create WorkDay object for each day of the week
-        workDay = {
-            "mon": WorkDay(data["workDay"]["mon"]["work"]),
-            "tue": WorkDay(data["workDay"]["tue"]["work"]),
-            "wed": WorkDay(data["workDay"]["wed"]["work"]),
-            "thu": WorkDay(data["workDay"]["thu"]["work"]),
-            "fri": WorkDay(data["workDay"]["fri"]["work"]),
-            "sat": WorkDay(data["workDay"]["sat"]["work"]),
-            "sun": WorkDay(data["workDay"]["sun"]["work"]),
-        }
+#         # Create WorkDay object for each day of the week
+#         workDay = {
+#             "mon": WorkDay(data["workDay"]["mon"]["work"]),
+#             "tue": WorkDay(data["workDay"]["tue"]["work"]),
+#             "wed": WorkDay(data["workDay"]["wed"]["work"]),
+#             "thu": WorkDay(data["workDay"]["thu"]["work"]),
+#             "fri": WorkDay(data["workDay"]["fri"]["work"]),
+#             "sat": WorkDay(data["workDay"]["sat"]["work"]),
+#             "sun": WorkDay(data["workDay"]["sun"]["work"]),
+#         }
         
-        # Extract projectID, taskID, and description from the data
-        projectID = ObjectId(data["Project"]["projectID"])
-        taskID = ObjectId(data["Task"]["taskID"])
-        description = data["description"]
+#         # Extract projectID, taskID, and description from the data
+#         projectID = ObjectId(data["Project"]["projectID"])
+#         taskID = ObjectId(data["Task"]["taskID"])
+#         description = data["description"]
 
-        # Create an EmployeeSheetObject with the extracted data and the created WorkDay object
-        employeeSheetObject = EmployeeSheetObject(projectID=projectID, taskID=taskID, workDay=workDay, description=description)
+#         # Create an EmployeeSheetObject with the extracted data and the created WorkDay object
+#         employeeSheetObject = EmployeeSheetObject(projectID=projectID, taskID=taskID, workDay=workDay, description=description)
         
-        # Extract version from the data
-        version = data["version"]
+#         # Extract version from the data
+#         version = data["version"]
         
-        # Create an EmployeeSheetInstance with the extracted version and the created EmployeeSheetObject
-        employeeSheetInstance = EmployeeSheetInstance(version=version, employeeSheetObject=employeeSheetObject)
+#         # Create an EmployeeSheetInstance with the extracted version and the created EmployeeSheetObject
+#         employeeSheetInstance = EmployeeSheetInstance(version=version, employeeSheetObject=employeeSheetObject)
 
-        # Extract managerSheetID, employeeID, managerID, startDate, and endDate from the data
-        managerSheetID = ObjectId(data["managerSheetID"])
-        employeeID = ObjectId(data["Employee"]["employeeID"])
-        managerID = ObjectId(data["Manager"]["managerID"])
-        startDate = data["startDate"]
-        endDate = data["endDate"]
+#         # Extract managerSheetID, employeeID, managerID, startDate, and endDate from the data
+#         managerSheetID = ObjectId(data["managerSheetID"])
+#         employeeID = ObjectId(data["Employee"]["employeeID"])
+#         managerID = ObjectId(data["Manager"]["managerID"])
+#         startDate = data["startDate"]
+#         endDate = data["endDate"]
         
-        # Create an EmployeeSheet with the extracted data and the created EmployeeSheetInstance
-        employeeSheet = EmployeeSheet(managerSheetID=managerSheetID, employeeID=employeeID, managerID=managerID, startDate=startDate, endDate=endDate, employeeSheetInstances=[employeeSheetInstance])
-        logging.info("EmployeeSheet Instance Generated")
+#         # Create an EmployeeSheet with the extracted data and the created EmployeeSheetInstance
+#         employeeSheet = EmployeeSheet(managerSheetID=managerSheetID, employeeID=employeeID, managerID=managerID, startDate=startDate, endDate=endDate, employeeSheetInstances=[employeeSheetInstance])
+#         logging.info("EmployeeSheet Instance Generated")
         
-        msg_str = ""
+#         msg_str = ""
 
-        # Check if an EmployeeSheet with the same managerSheetID and employeeID already exists in the database
-        if (client.TimesheetDB.EmployeeSheets.find_one({"managerSheetID": employeeSheet.managerSheetID, "employeeID": employeeSheet.employeeID}) is None):
-            # If not, insert the created EmployeeSheet into the database and log a success message
-            result = client.TimesheetDB.EmployeeSheets.insert_one(employeeSheet.to_dict())
-            msg_str = "Employee Sheet Created" + ": EmployeeSheetID :" + str(result.inserted_id)
-            # logging.info("Inserted the created EmployeeSheet into the database with the created EmployeeSheet Instance")
-        else:
-            # If an EmployeeSheet with the same managerSheetID and employeeID already exists, check if an EmployeeSheetInstance with the same version already exists
-            if (client.TimesheetDB.EmployeeSheets.find_one({"employeeSheetInstances.version": version}) is None):
-                # If not, update the existing EmployeeSheet with the created EmployeeSheetInstance and log a success message
-                result = client.TimesheetDB.EmployeeSheets.update_one({"employeeID": employeeSheet.employeeID, "managerSheetID": employeeSheet.managerSheetID},
-                                                            {"$push": {"employeeSheetInstances": employeeSheetInstance.to_dict()}})
-                msg_str = "Employee Sheet updated" + ": EmployeeSheetID :" + str(result.inserted_id)
-                # logging.info("Updated the existing EmployeeSheet with the created EmployeeSheet Instance")
-            else:
-                # If an EmployeeSheetInstance with the same version already exists, log a message indicating that the EmployeeSheet already exists
-                msg_str = "Employee Sheet already exists"
-                # logging.info("EmployeeSheet Instance already exists")
+#         # Check if an EmployeeSheet with the same managerSheetID and employeeID already exists in the database
+#         if (client.TimesheetDB.EmployeeSheets.find_one({"managerSheetID": employeeSheet.managerSheetID, "employeeID": employeeSheet.employeeID}) is None):
+#             # If not, insert the created EmployeeSheet into the database and log a success message
+#             result = client.TimesheetDB.EmployeeSheets.insert_one(employeeSheet.to_dict())
+#             msg_str = "Employee Sheet Created" + ": EmployeeSheetID :" + str(result.inserted_id)
+#             # logging.info("Inserted the created EmployeeSheet into the database with the created EmployeeSheet Instance")
+#         else:
+#             # If an EmployeeSheet with the same managerSheetID and employeeID already exists, check if an EmployeeSheetInstance with the same version already exists
+#             if (client.TimesheetDB.EmployeeSheets.find_one({"employeeSheetInstances.version": version}) is None):
+#                 # If not, update the existing EmployeeSheet with the created EmployeeSheetInstance and log a success message
+#                 result = client.TimesheetDB.EmployeeSheets.update_one({"employeeID": employeeSheet.employeeID, "managerSheetID": employeeSheet.managerSheetID},
+#                                                             {"$push": {"employeeSheetInstances": employeeSheetInstance.to_dict()}})
+#                 msg_str = "Employee Sheet updated" + ": EmployeeSheetID :" + str(result.inserted_id)
+#                 # logging.info("Updated the existing EmployeeSheet with the created EmployeeSheet Instance")
+#             else:
+#                 # If an EmployeeSheetInstance with the same version already exists, log a message indicating that the EmployeeSheet already exists
+#                 msg_str = "Employee Sheet already exists"
+#                 # logging.info("EmployeeSheet Instance already exists")
         
-        logging.info(msg_str)  # Log the message
-    except Exception as e:
-        # If an error occurs, log an error message
-        logging.error("[ERROR] --- Error creating Timesheet Records: ",type(e).__name__, ":", str(e))
+#         logging.info(msg_str)  # Log the message
+#     except Exception as e:
+#         # If an error occurs, log an error message
+#         logging.error("[ERROR] --- Error creating Timesheet Records: ",type(e).__name__, ":", str(e))
         
-# Function to distribute active timesheets
-def distribute_active_timesheets():
-    try:
-        logging.info("[INIT] --- Timesheets Distribution Initiated...")
-        client = dbConnectCheck()  # Check the database connection
-        if isinstance(client, MongoClient):  # If the connection is successful
-            # Define the pipeline for the aggregation operation on the TimesheetRecords collection
-            managerSheet_pipeline = [
-                {"$unwind": "$managerSheetsInstances"},
-                {"$lookup":{"from": "ManagerSheets",
-                            "localField": "managerSheetsInstances.managerSheetsObjects",
-                            "foreignField": "_id",
-                            "as": "manager"}},
-                {"$unwind": "$manager"},
-                {"$match":{ "manager.status": "Active"}},
-                {"$lookup":{"from": "AssignmentGroup",
-                            "localField": "manager.assignGroupID",
-                            "foreignField": "_id",
-                            "as": "assign"}},
-                {"$unwind": "$assign"},
-                {"$project":{"managerID": 1,
-                            "version": "$managerSheetsInstances.version",
-                            "managerSheetID": "$managerSheetsInstances.managerSheetsObjects",
-                            "startDate": "$manager.startDate",
-                            "endDate": "$manager.endDate",
-                            "status": "$manager.status",
-                            "projectID": "$assign.projectID",
-                            "workDay": "$manager.workDay",
-                            "description": "$manager.description",
-                            "assignmentID": "$assign.assignmentInstances.assignmentID"}},
-                {"$unwind": "$assignmentID"}
-            ]
+# # Function to distribute active timesheets
+# def distribute_active_timesheets():
+#     try:
+#         logging.info("[INIT] --- Timesheets Distribution Initiated...")
+#         client = dbConnectCheck()  # Check the database connection
+#         if isinstance(client, MongoClient):  # If the connection is successful
+#             # Define the pipeline for the aggregation operation on the TimesheetRecords collection
+#             managerSheet_pipeline = [
+#                 {"$unwind": "$managerSheetsInstances"},
+#                 {"$lookup":{"from": "ManagerSheets",
+#                             "localField": "managerSheetsInstances.managerSheetsObjects",
+#                             "foreignField": "_id",
+#                             "as": "manager"}},
+#                 {"$unwind": "$manager"},
+#                 {"$match":{ "manager.status": "Active"}},
+#                 {"$lookup":{"from": "AssignmentGroup",
+#                             "localField": "manager.assignGroupID",
+#                             "foreignField": "_id",
+#                             "as": "assign"}},
+#                 {"$unwind": "$assign"},
+#                 {"$project":{"managerID": 1,
+#                             "version": "$managerSheetsInstances.version",
+#                             "managerSheetID": "$managerSheetsInstances.managerSheetsObjects",
+#                             "startDate": "$manager.startDate",
+#                             "endDate": "$manager.endDate",
+#                             "status": "$manager.status",
+#                             "projectID": "$assign.projectID",
+#                             "workDay": "$manager.workDay",
+#                             "description": "$manager.description",
+#                             "assignmentID": "$assign.assignmentInstances.assignmentID"}},
+#                 {"$unwind": "$assignmentID"}
+#             ]
 
-            # Define the pipeline for the aggregation operation on the Assignments collection
-            assignment_pipeline = [
-                {"$unwind": "$assignedTo"},
-                {"$lookup":{"from": "Members",
-                            "localField": "assignedTo",
-                            "foreignField": "_id",
-                            "as": "member"}},
-                {"$unwind": "$member"},
-                {"$lookup":{"from": "Members",
-                            "localField": "assignedBy",
-                            "foreignField": "_id",
-                            "as": "manager"}},
-                {"$unwind": "$manager"},
-                {"$lookup":{"from": "Tasks",
-                            "localField": "taskID",
-                            "foreignField": "_id",
-                            "as": "task"}},
-                {"$unwind": "$task"},
-                {"$lookup":{"from": "Projects",
-                            "localField": "projectID",
-                            "foreignField": "_id",
-                            "as": "project"}},
-                {"$unwind": "$project"},
-                {"$project":{"_id":0,
-                            "assignmentID": "$_id",
-                            "Assignment Name": "$name",
-                            "Project":{"projectID": "$project._id",
-                                        "Project Name": "$project.name"},
-                            "Task":{   "taskID": "$task._id",
-                                        "Task Name": "$task.name",
-                                        "Billable": "$task.billable",
-                                        "Task Description": "$task.description",},
-                            "Employee":{"employeeID": "$member._id",
-                                        "Employee Name": "$member.name"},
-                            "Manager":{"managerID": "$manager._id",
-                                        "Manager Name": "$manager.name"}}}
-            ]
+#             # Define the pipeline for the aggregation operation on the Assignments collection
+#             assignment_pipeline = [
+#                 {"$unwind": "$assignedTo"},
+#                 {"$lookup":{"from": "Members",
+#                             "localField": "assignedTo",
+#                             "foreignField": "_id",
+#                             "as": "member"}},
+#                 {"$unwind": "$member"},
+#                 {"$lookup":{"from": "Members",
+#                             "localField": "assignedBy",
+#                             "foreignField": "_id",
+#                             "as": "manager"}},
+#                 {"$unwind": "$manager"},
+#                 {"$lookup":{"from": "Tasks",
+#                             "localField": "taskID",
+#                             "foreignField": "_id",
+#                             "as": "task"}},
+#                 {"$unwind": "$task"},
+#                 {"$lookup":{"from": "Projects",
+#                             "localField": "projectID",
+#                             "foreignField": "_id",
+#                             "as": "project"}},
+#                 {"$unwind": "$project"},
+#                 {"$project":{"_id":0,
+#                             "assignmentID": "$_id",
+#                             "Assignment Name": "$name",
+#                             "Project":{"projectID": "$project._id",
+#                                         "Project Name": "$project.name"},
+#                             "Task":{   "taskID": "$task._id",
+#                                         "Task Name": "$task.name",
+#                                         "Billable": "$task.billable",
+#                                         "Task Description": "$task.description",},
+#                             "Employee":{"employeeID": "$member._id",
+#                                         "Employee Name": "$member.name"},
+#                             "Manager":{"managerID": "$manager._id",
+#                                         "Manager Name": "$manager.name"}}}
+#             ]
 
-            # Perform the aggregation operations and convert the results to lists
-            timesheet_documents = list(client.TimesheetDB.TimesheetRecords.aggregate(managerSheet_pipeline))
-            assignment_documents = list(client.WorkBaseDB.Assignments.aggregate(assignment_pipeline))
+#             # Perform the aggregation operations and convert the results to lists
+#             timesheet_documents = list(client.TimesheetDB.TimesheetRecords.aggregate(managerSheet_pipeline))
+#             assignment_documents = list(client.WorkBaseDB.Assignments.aggregate(assignment_pipeline))
 
-            # Convert the lists to DataFrames
-            timesheet_df = pd.DataFrame(timesheet_documents)
-            assignment_df = pd.DataFrame(assignment_documents)
+#             # Convert the lists to DataFrames
+#             timesheet_df = pd.DataFrame(timesheet_documents)
+#             assignment_df = pd.DataFrame(assignment_documents)
 
-            # Merge the DataFrames on the 'assignmentID' column
-            result_df = pd.merge(timesheet_df, assignment_df, on='assignmentID', how='inner')
+#             # Merge the DataFrames on the 'assignmentID' column
+#             result_df = pd.merge(timesheet_df, assignment_df, on='assignmentID', how='inner')
 
-            # Convert the merged DataFrame to a list of dictionaries
-            result_documents = result_df.to_dict(orient='records')
+#             # Convert the merged DataFrame to a list of dictionaries
+#             result_documents = result_df.to_dict(orient='records')
 
-            # For each dictionary in the list, extract a subset of the key-value pairs and store the resulting dictionary in the database
-            for i in range(len(result_documents)):
-                subset_dict = {key: result_documents[i][key] for key in ['managerSheetID', 'startDate', 'endDate', 'status', 'version', 'workDay', 'description', 'Project', 'Task', 'Employee', 'Manager'] if key in result_documents[i]}
-                store_employee_sheets(subset_dict, client)
-            logging.info("[OK] --- Completed updating employee sheets in the database")
-            logging.info("[OK] --- Timesheets Distribution Successful")  # Log a success message
-        else:
-            # If the connection fails, log an error message
-            logging.error("[ERROR] --- Failed to connect to the MongoDB server while distributing timesheets")
-    except Exception as e:
-        # If an error occurs, log an error message
-        logging.error("[ERROR] --- Error distributing timesheets: ",type(e).__name__, ":", str(e))
+#             # For each dictionary in the list, extract a subset of the key-value pairs and store the resulting dictionary in the database
+#             for i in range(len(result_documents)):
+#                 subset_dict = {key: result_documents[i][key] for key in ['managerSheetID', 'startDate', 'endDate', 'status', 'version', 'workDay', 'description', 'Project', 'Task', 'Employee', 'Manager'] if key in result_documents[i]}
+#                 store_employee_sheets(subset_dict, client)
+#             logging.info("[OK] --- Completed updating employee sheets in the database")
+#             logging.info("[OK] --- Timesheets Distribution Successful")  # Log a success message
+#         else:
+#             # If the connection fails, log an error message
+#             logging.error("[ERROR] --- Failed to connect to the MongoDB server while distributing timesheets")
+#     except Exception as e:
+#         # If an error occurs, log an error message
+#         logging.error("[ERROR] --- Error distributing timesheets: ",type(e).__name__, ":", str(e))
 
 def create_employee_sheets():
     try:
