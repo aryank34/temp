@@ -85,30 +85,6 @@ class ManagerSheetsAssign:
             "status": self.status,
             "assignGroupID": self.assignGroupID,
         }
-# Define a class for employee sheet objects
-class EmployeeSheetObject:
-    def __init__(self, projectID: ObjectId, taskID: ObjectId, workDay: dict[str, WorkDay], description: str):  # Initialize the class with project ID, task ID, work day, and description
-        self.projectID = projectID  # Assign the project ID
-        self.taskID = taskID  # Assign the task ID
-        self.workDay = workDay  # Assign the work day
-        self.description = description  # Assign the description
-    def to_dict(self):  # Convert the object to a dictionary
-        return {
-            "projectID": self.projectID,
-            "taskID": self.taskID,
-            "workDay": {day: vars(workDay) for day, workDay in self.workDay.items()},
-            "description": self.description
-        }
-# Define a class for employee sheet instances
-class EmployeeSheetInstance:
-    def __init__(self, version: int, employeeSheetObject: EmployeeSheetObject):  # Initialize the class with version and employee sheet object
-        self.version = version  # Assign the version
-        self.employeeSheetObject = employeeSheetObject.to_dict()  # Convert the employee sheet object to a dictionary
-    def to_dict(self):  # Convert the instance to a dictionary
-        return {
-            "version": self.version,
-            "employeeSheetObject": self.employeeSheetObject
-        }
 # Define a class for managing sheet reviews
 class ManagerSheetReview:
     def __init__(self, status: str, employeeSheetID: ObjectId):  # Initialize the class with status and employee sheet ID
@@ -119,26 +95,6 @@ class ManagerSheetReview:
             "employeeSheetID": self.employeeSheetID,
             "status": self.status
         }
-# Define a class for employee sheets
-class EmployeeSheet:
-    def __init__(self, managerSheetID: ObjectId, employeeID: ObjectId, managerID: ObjectId, startDate: datetime, endDate: datetime, employeeSheetInstances: list[EmployeeSheetInstance]):  # Initialize the class with manager sheet ID, employee ID, manager ID, start date, end date, and employee sheet instances
-        self.managerSheetID = managerSheetID  # Assign the manager sheet ID
-        self.employeeID = employeeID  # Assign the employee ID
-        self.managerID = managerID  # Assign the manager ID
-        self.startDate = startDate  # Assign the start date
-        self.endDate = endDate  # Assign the end date
-        self.employeeSheetInstances = employeeSheetInstances  # Assign the employee sheet instances
-        self.status = "Ongoing"  # Initialize the status as "Ongoing"
-    def to_dict(self):  # Convert the sheet to a dictionary
-        return {
-            "managerSheetID": self.managerSheetID,
-            "employeeID": self.employeeID,
-            "managerID": self.managerID,
-            "startDate": self.startDate,
-            "endDate": self.endDate,
-            "employeeSheetInstances": [vars(employeeSheetInstance) for employeeSheetInstance in self.employeeSheetInstances],
-            "status": self.status
-        } 
 # Define a class for assignment instances
 class AssignmentInstance:
     def __init__(self, assignDate: datetime, assignmentID: ObjectId):  # Initialize the class with assignment date and assignment ID
@@ -149,6 +105,38 @@ class AssignmentGroup:
     def __init__(self, name: str, assignmentInstances: list[AssignmentInstance]):  # Initialize the class with name and assignment instances
         self.name = name  # Assign the name
         self.assignmentInstances = assignmentInstances  # Assign the assignment instances
+# Define a class for employee sheet objects
+class EmployeeSheetObject:
+    def __init__(self, projectID: ObjectId, taskID: ObjectId, workDay: dict[str, WorkDay], description: str):
+        self.projectID = projectID
+        self.taskID = taskID
+        self.workDay = workDay
+        self.description = description
+    def to_dict(self):
+        return {
+            "projectID": self.projectID,
+            "taskID": self.taskID,
+            "workDay": {day: vars(workDay) for day, workDay in self.workDay.items()},
+            "description": self.description
+        }
+# Define a class for employee sheets
+class EmployeeSheet:
+    def __init__(self, employeeID: ObjectId, managerID: ObjectId, startDate: datetime, endDate: datetime, employeeSheetObject: list[EmployeeSheetObject] = []):
+        self.employeeID = employeeID
+        self.managerID = managerID
+        self.startDate = startDate
+        self.endDate = endDate
+        self.employeeSheetObject = employeeSheetObject
+        self.status = "Testing"
+    def to_dict(self):
+        return {
+            "employeeID": self.employeeID,
+            "managerID": self.managerID,
+            "startDate": self.startDate,
+            "endDate": self.endDate,
+            "employeeSheetObject": [vars(employeeSheetInstance) for employeeSheetInstance in self.employeeSheetObject],
+            "status": self.status
+        } 
 # --------------------------------------------------------------------------------------
 
 # Function to check the connection to the MongoDB server
@@ -389,6 +377,41 @@ def distribute_active_timesheets():
         # If an error occurs, log an error message
         logging.error("[ERROR] --- Error distributing timesheets: ",type(e).__name__, ":", str(e))
 
+def create_employee_sheets():
+    try:
+        
+        client = dbConnectCheck()  # Check the database connection
+        if isinstance(client, MongoClient):  # If the connection is successful
+            # Get next week
+            next_monday, next_to_next_monday = get_next_week()
+
+            # format dates
+            next_monday = next_monday.strftime("%Y-%m-%d %H:%M:%S")
+            next_to_next_monday = next_to_next_monday.strftime("%Y-%m-%d %H:%M:%S")
+
+            # find list of all employees in employee collection where isEmployee is true
+            employees = list(client.WorkBaseDB.Members.find({"isEmployee": True},{"employeeID": "$_id", "managerID": "$reportsTo"}))
+            for employee in employees:
+                new_employeeSheet = EmployeeSheet(employeeID=employee["employeeID"], managerID=employee["managerID"], startDate=next_monday, endDate=next_to_next_monday)
+                # check if employeeSheet exists for the same duration for same employee
+                current_employeeSheet = client.TimesheetDB.EmployeeSheets.find_one({"employeeID": employee["employeeID"], "startDate": next_monday, "endDate": next_to_next_monday})
+                # create timesheet for all employees
+                if not current_employeeSheet:
+                    result = client.TimesheetDB.EmployeeSheets.insert_one(new_employeeSheet.to_dict())
+                    if (result):
+                        logging.info("[OK] --- Employee Sheet Created"+" : EmployeeSheetID : "+ str(result.inserted_id), " : EmployeeID : "+ str(employee["employeeID"]))
+                    else:
+                        logging.error("[ERROR] --- Employee Sheet Creation Failed"+" : EmployeeID : "+ str(employee["employeeID"]))
+                else:
+                    logging.info("[INFO] --- Employee Sheet Already Exists"+" : EmployeeID : "+ str(employee["employeeID"]))
+
+        else:
+            # If the connection fails, log an error message
+            logging.error("[ERROR] --- Failed to connect to the MongoDB server while creating employee sheets")
+    except Exception as e:
+        # If an error occurs, log an error message
+        logging.error("[ERROR] --- Error creating employee sheets: ",type(e).__name__, ":", str(e))
+
 # Function to submit timesheets for review
 def submit_timesheet_for_review(week_check):
     try:
@@ -516,9 +539,9 @@ class Scheduler:
             # The update_status_timesheets job runs every 15 minutes on Sundays
             logging.info('[EXEC] Adding Jobs...')
             print('Adding Jobs...')
-            scheduler.add_job(update_status_timesheets, 'cron', day_of_week='sun', hour=0, minute="0/15", timezone='America/New_York', args=[])
-            # The distribute_active_timesheets job runs every 15 minutes every day at 15:00 IST
-            scheduler.add_job(distribute_active_timesheets, 'cron', day_of_week='*', hour=15, minute="0/15", timezone='Asia/Kolkata', args=[])
+            scheduler.add_job(create_employee_sheets, 'cron', day_of_week='sun', hour=23, minute="0/15", timezone='America/New_York', args=[])
+            # # The distribute_active_timesheets job runs every 15 minutes every day at 15:00 IST
+            # scheduler.add_job(distribute_active_timesheets, 'cron', day_of_week='*', hour=15, minute="0/15", timezone='Asia/Kolkata', args=[])
             # The submit_timesheet_for_review job runs every 15 minutes on Fridays at 20:00 UTC
             scheduler.add_job(submit_timesheet_for_review, 'cron', day_of_week='fri', hour=20, minute="0/15", timezone='America/New_York', args=[False])
             # The submit_timesheet_for_review job runs every 15 minutes on Sundays at 20:00 UTC

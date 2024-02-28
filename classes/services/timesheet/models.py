@@ -90,22 +90,20 @@ class ManagerSheetReview:
         self.status = status
 
 class EmployeeSheet:
-    def __init__(self, managerSheetID: ObjectId, employeeID: ObjectId, managerID: ObjectId, startDate: datetime, endDate: datetime, employeeSheetInstances: list[EmployeeSheetInstance]):
-        self.managerSheetID = managerSheetID
+    def __init__(self, employeeID: ObjectId, managerID: ObjectId, startDate: datetime, endDate: datetime, employeeSheetObject: list[EmployeeSheetObject] = []):
         self.employeeID = employeeID
         self.managerID = managerID
         self.startDate = startDate
         self.endDate = endDate
-        self.employeeSheetInstances = employeeSheetInstances
+        self.employeeSheetObject = employeeSheetObject
         self.status = "Ongoing"
     def to_dict(self):
         return {
-            "managerSheetID": self.managerSheetID,
             "employeeID": self.employeeID,
             "managerID": self.managerID,
             "startDate": self.startDate,
             "endDate": self.endDate,
-            "employeeSheetInstances": [vars(employeeSheetInstance) for employeeSheetInstance in self.employeeSheetInstances],
+            "employeeSheetObject": [vars(employeeSheetInstance) for employeeSheetInstance in self.employeeSheetObject],
             "status": self.status
         } 
 

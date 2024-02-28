@@ -187,6 +187,46 @@ def fetch_timesheets(employee_uuid):
 #     except Exception as e:
 #         # If an error occurs, return the
 #         return make_response(jsonify({"error": str(e)}), 500)
+
+def save_timesheet(employee_uuid, timesheet):
+    """
+    This function saves a new timesheet for an employee.
+    It takes the employee ID, timesheet data, and the collection to save to as input.
+    It returns a JSON response containing the new timesheet or an error message.
+    """
+    try:
+        # Check the connection to the MongoDB server
+        client = dbConnectCheck()
+        if isinstance(client, MongoClient):
+            # correct data field formats for timesheet
+            # check if the employeeID is valid
+            verify = get_WorkAccount(client, employee_uuid)
+            if not verify.status_code == 200:
+                # If the connection fails, return the error response
+                return verify
+            employee_id= verify.json['_id']
+            if timesheet is not None:
+                # check if employeeSheetsID is valid
+                if timesheet['employeeSheetID'] is not None:
+                    timesheet['employeeSheetID'] = ObjectId(timesheet['employeeSheetID'])
+                    verify = verify_attribute(collection=client.TimesheetDB.EmployeeSheets, key="_id",attr_value=timesheet['employeeSheetID'])
+                    if not verify:
+                        return make_response(jsonify({"error": "timesheet 'employeeSheetID' data is incorrect"}), 400)
+                    verify = verify_attribute(collection=client.TimesheetDB.EmployeeSheets, key="employeeID",attr_value=employee_id)
+                    if not verify:
+                        return make_response(jsonify({"error": "employee doesnt has access to this timesheet "}), 400)
+                else:
+                    return make_response(jsonify({"error": "timesheet 'employeeSheetID' data is required"}), 400)
+                
+        else:
+            # If the connection fails, return the error response
+            return make_response(jsonify({"error": "Failed to connect to the MongoDB server"}), 500)
+    except Exception as e:
+        # If an error occurs, return the error response
+        return make_response(jsonify({"error": str(e)}), 500)
+
+
+
 def edit_timesheet(employee_uuid, timesheet):
     """
     This function edits an existing timesheet for an employee.
@@ -283,6 +323,9 @@ def edit_timesheet(employee_uuid, timesheet):
                 
                 # after successful action, return message Day's work update successful
                 return make_response(jsonify({"message": "Day's work update successful"}), 200)
+        else:
+            # If the connection fails, return the error response
+            return make_response(jsonify({"error": "Failed to connect to the MongoDB server"}), 500)
     except Exception as e:
         # If an error occurs, return the error response
         return make_response(jsonify({"error": str(e)}), 500)
