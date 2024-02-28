@@ -140,6 +140,53 @@ def fetch_timesheets(employee_uuid):
         # If an error occurs, return the error response
         return make_response(jsonify({"error": str(e)}), 500)
 
+# def create_timesheets_for_employee(client, employee_id, timesheet):
+#     """
+#     This function creates a new timesheet for an employee.
+#     It takes the employee ID, timesheet data, and the collection to save to as input.
+#     It returns a JSON response containing the new timesheet or an error message.
+#     """
+#     try:
+#         # Check the connection to the MongoDB server
+#         if isinstance(client, MongoClient):
+#             # correct data field formats for timesheet
+#             if timesheet is not None:
+#                 # check if employeeID is valid
+#                 verify = get_WorkAccount(client, employee_id)
+#                 if not verify.status_code == 200:
+#                     # If the connection fails, return the error response
+#                     return verify
+#                 employee_id= verify.json['_id']
+#                 # check if employeeSheetsID is valid
+#                 current_sheet = client.TimesheetDB.EmployeeSheets.find_one({"_id": ObjectId(timesheet['employeeSheetID'])})
+#                 if timesheet['employeeSheetID'] is not None:
+#                     timesheet['employeeSheetID'] = ObjectId(timesheet['employeeSheetID'])
+#                     verify = verify_attribute(collection=client.TimesheetDB.EmployeeSheets, key="_id",attr_value=timesheet['employeeSheetID'])
+#                     if not verify:
+#                         return make_response(jsonify({"error": "timesheet 'employeeSheetID' data is incorrect"}), 400)
+#                     verify = verify_attribute(collection=client.TimesheetDB.EmployeeSheets, key="employeeID",attr_value=employee_id)
+#                     if not verify:
+#                         return make_response(jsonify({"error": "employee doesnt has access to this timesheet "}), 400)
+#                 else:
+#                     return make_response(jsonify({"error": "timesheet 'employeeSheetID' data is required"}), 400)
+                
+#                 # check if status update is valid:
+#                 if timesheet['status'] is not None:
+#                     if timesheet['status'] not in ["Ongoing", "Returned"]:
+#                         return make_response(jsonify({"error": "timesheet 'status' data is incorrect"}), 400)
+#                 else:
+#                     return make_response(jsonify({"error": "timesheet 'status' data is required"}), 400)
+
+#                 # Return the new timesheet
+#                 return make_response(jsonify({"newTimesheet": new_timesheet.inserted_id}), 200)
+#             else:
+#                 return make_response(jsonify({"error": "timesheet data is required"}), 400)
+#         else:
+#             # If the connection fails, return the error response
+#             return make_response(jsonify({"error": "Failed to connect to the MongoDB server"}), 500)
+#     except Exception as e:
+#         # If an error occurs, return the
+#         return make_response(jsonify({"error": str(e)}), 500)
 def edit_timesheet(employee_uuid, timesheet):
     """
     This function edits an existing timesheet for an employee.
@@ -236,6 +283,94 @@ def edit_timesheet(employee_uuid, timesheet):
                 
                 # after successful action, return message Day's work update successful
                 return make_response(jsonify({"message": "Day's work update successful"}), 200)
+    except Exception as e:
+        # If an error occurs, return the error response
+        return make_response(jsonify({"error": str(e)}), 500)
+
+def get_employee_assignments(employee_id):
+    """
+    Retrieves all tasks for an employee from the database.
+
+    Args:
+        employee_id (str): The ID of the employee.
+
+    Returns:
+        JSON response: A JSON response containing the tasks or an error message.
+    """
+    try:
+        client = dbConnectCheck() 
+        # Use aggregation pipeline to match the employee ID and project the required fields
+        common_work_data_pipeline = [
+                                        {"$lookup": {"from": "ProjectActivity","localField": "_id","foreignField": "activities.members","as": "matchingAssignments"}},
+                                        {"$unwind": "$matchingAssignments"},
+                                        {"$lookup": {"from": "Projects","localField": "matchingAssignments.projectID","foreignField": "_id","as": "matchingAssignments.project"}},
+                                        {"$unwind": "$matchingAssignments.project"},
+                                        {"$lookup": {"from": "Tasks","localField": "matchingAssignments.activities.tasks","foreignField": "_id","as": "matchingAssignments.task"}},
+                                        {"$unwind": "$matchingAssignments.task"},
+                                        {"$group": {"_id": {"employee_id": "$_id","project_id": "$matchingAssignments.project._id"},"project_name": { "$first": "$matchingAssignments.project.name" },"Tasks": { "$push": "$matchingAssignments.task" }}},
+                                        {"$group": {"_id": "$_id.employee_id","Projects": {"$push": {"_id": "$_id.project_id","name": "$project_name","Tasks": "$Tasks"}}}},
+                                        {"$project": {"_id": 0,"employeeID": "$_id","Projects": 1}},
+                                        {"$project": {"Projects.Tasks.projectID": 0,"Projects.Tasks.deadline": 0,"Projects.Tasks.joblist": 0,"Projects.Tasks.completionStatus": 0,}}
+                                    ]
+        employee_pipeline = [{"$match": {"_id": ObjectId(employee_id)}}]
+        broadcast_pipeline = [{"$match": {"_id": ObjectId("65df099ca38e5bdce0199709")}}]
+        
+        employee_pipeline.extend(common_work_data_pipeline)
+        broadcast_pipeline.extend(common_work_data_pipeline)
+
+        employee_tasks = list(client.WorkBaseDB.Members.aggregate(employee_pipeline))
+        common_tasks = list(client.WorkBaseDB.Members.aggregate(broadcast_pipeline))
+        client.close()
+        if len(employee_tasks) == 0 and len(common_tasks) == 0:
+            # Convert the employee_sheets cursor object to a JSON object
+            return make_response(jsonify({"message": "No Job Assignments Here Yet. Ask the Administrator to Assign you to a Project Activity"}), 400)
+        # If the employee has no tasks, return the common tasks
+        if len(employee_tasks) == 0:
+            employee_tasks = common_tasks
+        # If the employee has tasks, return the employee tasks
+        if len(common_tasks) != 0:
+            # If the employee has tasks and common tasks, merge the common tasks with the employee tasks
+            # For each employee task, add the common tasks to the employee tasks
+            employee_tasks[0]['Projects'].extend(common_tasks[0]['Projects'])
+
+        # Convert the employee_sheets cursor object to a JSON object
+        tasks_json = json.dumps(employee_tasks[0], default=str)
+        tasks_data = json.loads(tasks_json)
+        # Return the JSON response
+        return make_response(jsonify({"employeeTasks": tasks_data}), 200)
+    
+    except Exception as e:
+        # If an error occurs, return the error response
+        return make_response(jsonify({"error": str(e)}), 500)
+
+def fetch_employee_project_tasks(employee_uuid):
+    """
+    This function fetches all tasks for an employee.
+    It takes an employee ID as input.y
+    It returns a JSON response containing the tasks or an error message.
+    """
+    try: 
+        # Check the connection to the MongoDB server
+        client = dbConnectCheck()
+        if isinstance(client, MongoClient):
+            # check if the userID is valid
+            verify = get_WorkAccount(client,employee_uuid)
+            client.close()
+            if not verify.status_code == 200:
+                # If the connection fails, return the error response
+                return verify
+            
+            employee_id = verify.json["_id"]
+            # Call the get_tasks_for_employee function with the employee ID
+            tasks_response = get_employee_assignments(employee_id)  
+            return tasks_response
+            
+        else:
+            # If the connection fails, return the error response
+            client.close()
+            return make_response(jsonify({"error": "Failed to connect to the MongoDB server"}), 500)
+            
+    
     except Exception as e:
         # If an error occurs, return the error response
         return make_response(jsonify({"error": str(e)}), 500)
