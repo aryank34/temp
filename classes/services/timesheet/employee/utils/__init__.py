@@ -342,46 +342,48 @@ def get_employee_assignments(employee_id):
     """
     try:
         client = dbConnectCheck() 
-        # Use aggregation pipeline to match the employee ID and project the required fields
-        common_work_data_pipeline = [
-                                        {"$lookup": {"from": "ProjectActivity","localField": "_id","foreignField": "activities.members","as": "matchingAssignments"}},
-                                        {"$unwind": "$matchingAssignments"},
-                                        {"$lookup": {"from": "Projects","localField": "matchingAssignments.projectID","foreignField": "_id","as": "matchingAssignments.project"}},
-                                        {"$unwind": "$matchingAssignments.project"},
-                                        {"$lookup": {"from": "Tasks","localField": "matchingAssignments.activities.tasks","foreignField": "_id","as": "matchingAssignments.task"}},
-                                        {"$unwind": "$matchingAssignments.task"},
-                                        {"$group": {"_id": {"employee_id": "$_id","project_id": "$matchingAssignments.project._id"},"project_name": { "$first": "$matchingAssignments.project.name" },"Tasks": { "$push": "$matchingAssignments.task" }}},
-                                        {"$group": {"_id": "$_id.employee_id","Projects": {"$push": {"_id": "$_id.project_id","name": "$project_name","Tasks": "$Tasks"}}}},
-                                        {"$project": {"_id": 0,"employeeID": "$_id","Projects": 1}},
-                                        {"$project": {"Projects.Tasks.projectID": 0,"Projects.Tasks.deadline": 0,"Projects.Tasks.joblist": 0,"Projects.Tasks.completionStatus": 0,}}
-                                    ]
-        employee_pipeline = [{"$match": {"_id": ObjectId(employee_id)}}]
-        broadcast_pipeline = [{"$match": {"_id": ObjectId("65df099ca38e5bdce0199709")}}]
-        
-        employee_pipeline.extend(common_work_data_pipeline)
-        broadcast_pipeline.extend(common_work_data_pipeline)
+        if isinstance(client, MongoClient):
+            # Use aggregation pipeline to match the employee ID and project the required fields
+            common_work_data_pipeline = [
+                                            {"$lookup": {"from": "ProjectActivity","localField": "_id","foreignField": "activities.members","as": "matchingAssignments"}},
+                                            {"$unwind": "$matchingAssignments"},
+                                            {"$lookup": {"from": "Projects","localField": "matchingAssignments.projectID","foreignField": "_id","as": "matchingAssignments.project"}},
+                                            {"$unwind": "$matchingAssignments.project"},
+                                            {"$lookup": {"from": "Tasks","localField": "matchingAssignments.activities.tasks","foreignField": "_id","as": "matchingAssignments.task"}},
+                                            {"$unwind": "$matchingAssignments.task"},
+                                            {"$group": {"_id": {"employee_id": "$_id","project_id": "$matchingAssignments.project._id"},"project_name": { "$first": "$matchingAssignments.project.name" },"Tasks": { "$push": "$matchingAssignments.task" }}},
+                                            {"$group": {"_id": "$_id.employee_id","Projects": {"$push": {"_id": "$_id.project_id","name": "$project_name","Tasks": "$Tasks"}}}},
+                                            {"$project": {"_id": 0,"employeeID": "$_id","Projects": 1}},
+                                            {"$project": {"Projects.Tasks.projectID": 0,"Projects.Tasks.deadline": 0,"Projects.Tasks.joblist": 0,"Projects.Tasks.completionStatus": 0,}}
+                                        ]
+            employee_pipeline = [{"$match": {"_id": ObjectId(employee_id)}}]
+            broadcast_pipeline = [{"$match": {"_id": ObjectId("65df099ca38e5bdce0199709")}}]
+            
+            employee_pipeline.extend(common_work_data_pipeline)
+            broadcast_pipeline.extend(common_work_data_pipeline)
 
-        employee_tasks = list(client.WorkBaseDB.Members.aggregate(employee_pipeline))
-        common_tasks = list(client.WorkBaseDB.Members.aggregate(broadcast_pipeline))
-        client.close()
-        if len(employee_tasks) == 0 and len(common_tasks) == 0:
+            employee_tasks = list(client.WorkBaseDB.Members.aggregate(employee_pipeline))
+            common_tasks = list(client.WorkBaseDB.Members.aggregate(broadcast_pipeline))
+            if len(employee_tasks) == 0 and len(common_tasks) == 0:
+                # Convert the employee_sheets cursor object to a JSON object
+                return make_response(jsonify({"message": "No Job Assignments Here Yet. Ask the Administrator to Assign you to a Project Activity"}), 400)
+            # If the employee has no tasks, return the common tasks
+            if len(employee_tasks) == 0:
+                employee_tasks = common_tasks
+            # If the employee has tasks, return the employee tasks
+            if len(common_tasks) != 0:
+                # If the employee has tasks and common tasks, merge the common tasks with the employee tasks
+                # For each employee task, add the common tasks to the employee tasks
+                employee_tasks[0]['Projects'].extend(common_tasks[0]['Projects'])
+
             # Convert the employee_sheets cursor object to a JSON object
-            return make_response(jsonify({"message": "No Job Assignments Here Yet. Ask the Administrator to Assign you to a Project Activity"}), 400)
-        # If the employee has no tasks, return the common tasks
-        if len(employee_tasks) == 0:
-            employee_tasks = common_tasks
-        # If the employee has tasks, return the employee tasks
-        if len(common_tasks) != 0:
-            # If the employee has tasks and common tasks, merge the common tasks with the employee tasks
-            # For each employee task, add the common tasks to the employee tasks
-            employee_tasks[0]['Projects'].extend(common_tasks[0]['Projects'])
-
-        # Convert the employee_sheets cursor object to a JSON object
-        tasks_json = json.dumps(employee_tasks[0], default=str)
-        tasks_data = json.loads(tasks_json)
-        # Return the JSON response
-        return make_response(jsonify({"employeeTasks": tasks_data}), 200)
-    
+            tasks_json = json.dumps(employee_tasks[0], default=str)
+            tasks_data = json.loads(tasks_json)
+            # Return the JSON response
+            return make_response(jsonify({"employeeTasks": tasks_data}), 200)
+        else:
+            # If the connection fails, return the error response
+            return make_response(jsonify({"error": "Failed to connect to the MongoDB server"}), 500)
     except Exception as e:
         # If an error occurs, return the error response
         return make_response(jsonify({"error": str(e)}), 500)
@@ -398,7 +400,6 @@ def fetch_employee_project_tasks(employee_uuid):
         if isinstance(client, MongoClient):
             # check if the userID is valid
             verify = get_WorkAccount(client,employee_uuid)
-            client.close()
             if not verify.status_code == 200:
                 # If the connection fails, return the error response
                 return verify
@@ -410,7 +411,6 @@ def fetch_employee_project_tasks(employee_uuid):
             
         else:
             # If the connection fails, return the error response
-            client.close()
             return make_response(jsonify({"error": "Failed to connect to the MongoDB server"}), 500)
             
     

@@ -379,7 +379,7 @@ def distribute_active_timesheets():
 
 def create_employee_sheets():
     try:
-        
+        logging.info("[INIT] --- Creating Employee Sheets...")  # Log the start of the process
         client = dbConnectCheck()  # Check the database connection
         if isinstance(client, MongoClient):  # If the connection is successful
             # Get next week
