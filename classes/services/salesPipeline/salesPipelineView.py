@@ -45,7 +45,8 @@ def deleteRecord(year, type):
 @auth.token_auth("/dashboard/salespipeline/<year>/current/transfer")
 def transferRecord(year):
     #GET method for dropdown
-
+    if request.method == 'GET':
+        return dropDownData(int(year), 'Sale')
     if request.method == 'POST':
         #from current to sale
         return transferCurrentToSale(request.json, int(year))
