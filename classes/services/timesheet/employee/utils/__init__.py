@@ -738,7 +738,8 @@ def employee_timesheet_operation(employee_uuid, timesheet):
                                     "version": 0
                                 }}}
                             )
-                            # return make_response(jsonify({"message": str(document)}), 200)
+                        
+                        
                         else:
                             client.TimesheetDB.TimesheetRecords.insert_one({"managerID": managerID, "managerSheetsInstances": [{"managerSheetsObjects": newManagerSheetReview.inserted_id, "lastUpdateDate": datetime.now(), "version": 0}]})
                         # Return the result message

@@ -14,6 +14,7 @@ from ....connectors.dbConnector import dbConnectCheck, get_WorkAccount, verify_a
 mongo_host = os.environ.get("MONGO_HOST_prim")
 
 def get_timesheets_for_manager(client, manager_id, status=None):
+    pass
     """
     Retrieves all timesheets (or draft timesheets) for a manager from the database.
 
@@ -248,6 +249,7 @@ def get_timesheets_for_manager(client, manager_id, status=None):
         return make_response(jsonify({"error": str(e)}), 500)
 
 def fetch_timesheets(manager_uuid, status=None):
+    pass
     """
     This function fetches all timesheets (or draft timesheets) for a manager.
     It takes a manager ID as input.
@@ -328,97 +330,6 @@ def get_review_timesheets_for_manager(client, manager_id):
         if len(timesheets) == 0:
             return make_response(jsonify({"message": "No Timesheets here yet"}), 200)
         
-        # work_pipeline = [
-        #                     {"$unwind": "$assignedTo",},
-        #                     {"$lookup": {"from": "Members",
-        #                                 "localField": "assignedTo",
-        #                                 "foreignField": "_id",
-        #                                 "as": "member"}},
-        #                     {"$unwind": "$member"},
-        #                     {"$lookup": {"from": "Members",
-        #                                 "localField": "assignedBy",
-        #                                 "foreignField": "_id",
-        #                                 "as": "manager"}},
-        #                     {"$unwind": "$manager"},
-        #                     {"$lookup": {"from": "Tasks",
-        #                                 "localField": "taskID",
-        #                                 "foreignField": "_id",
-        #                                 "as": "task"}},
-        #                     {"$unwind": "$task"},
-        #                     {"$lookup": {"from": "Projects",
-        #                                 "localField": "task.projectID",
-        #                                 "foreignField": "_id",
-        #                                 "as": "project"}},
-        #                     {"$unwind": "$project"},
-        #                     {"$project": {"Assignment Name": "$name",
-        #                                     "Project": {"projectID": "$project._id",
-        #                                                 "Project Name": "$project.name"},
-        #                                     "Task": {"taskID": "$task._id",
-        #                                             "Task Name": "$task.name",
-        #                                             "Billable": "$task.billable",
-        #                                             "Task Description": "$task.description"},
-        #                                     "Employee": {"employeeID": "$member._id",
-        #                                                 "Employee Name": "$member.name"},
-        #                                     "Manager": {"managerID": "$manager._id",
-        #                                                 "Manager Name": "$manager.name"}}},
-                            # {"$match": {"Employee.employeeID": ObjectId(manager_id)}}
-        # work = list(client.WorkBaseDB.Assignments.aggregate(work_pipeline))
-        # assign_pipeline = [{
-        #                     "$lookup": {
-        #                       "from": "Members",
-        #                       "localField": "assignedTo",
-        #                       "foreignField": "_id",
-        #                       "as": "assignedTo"
-        #                     }
-        #                   },
-        #                   {
-        #                     "$addFields": {
-        #                       "assignedMembers": {
-        #                         "$map": {
-        #                           "input": "$assignedTo",
-        #                           "as": "member",
-        #                           "in": {
-        #                             "_id": "$$member._id",
-        #                             "name": "$$member.name"
-        #                           }
-        #                         }
-        #                       }
-        #                     }
-        #                   },
-        #                 {
-        #                     "$project": {
-        #                       "_id": 0,
-        #                     "assignmentID": "$_id",
-        #                     "name": 1,
-        #                     "assignedMembers": 1
-        #                     }
-        #                   },
-        #                 ]
-        # assign = list(client.WorkBaseDB.Assignments.aggregate(assign_pipeline))
-
-        # filtered_timesheets = timesheets
-        # project_dict= {item['Project']['projectID']: item['Project'] for item in work}
-        # employee_dict= {item['Employee']['employeeID']: item['Employee'] for item in work}
-        # task_dict= {item['Task']['taskID']: item['Task'] for item in work}
-        # assign_dict= {item['assignmentID']: item for item in assign}
-        # for i in range(len(filtered_timesheets)):
-        #     employee_id = filtered_timesheets[i]['Employee']
-        #     employee_item = employee_dict.get(employee_id)
-        #     if employee_item:
-        #         # Merge Project details
-        #         filtered_timesheets[i]['Employee'] = employee_item
-        #     for j in range(len(filtered_timesheets[i]['submittedSheets'])):
-        #         project_id = filtered_timesheets[i]['submittedSheets'][j].pop('projectID', None)
-        #         if project_id is not None:
-        #             project_item = project_dict.get(project_id)
-        #             if project_item:
-        #                 filtered_timesheets[i]['submittedSheets'][j]['Project'] = project_item
-        #         task_id = filtered_timesheets[i]['submittedSheets'][j].pop('taskID', None)
-        #         if task_id is not None:
-        #             task_item = task_dict.get(task_id)
-        #             if task_item:
-        #                 filtered_timesheets[i]['submittedSheets'][j]['Task'] = task_item
-
         activity_pipeline = [
                                 {"$lookup": {"from": "Projects", "localField": "projectID", "foreignField": "_id", "as": "project"}},
                                 {"$unwind": "$project"},
@@ -435,7 +346,6 @@ def get_review_timesheets_for_manager(client, manager_id):
         activity = list(client.WorkBaseDB.ProjectActivity.aggregate(activity_pipeline))
 
         filtered_timesheets = timesheets
-
         # replace projectID with project:{projectName: <ProjectName>, projectId: <ProjectID>} and taskID with task:{taskName: <TaskName>, taskId: <TaskID>} and employeeID with employee:{employeeName: <EmployeeName>, employeeId: <employeeIDID>} in the timesheet using the employee_tasks dictionary
         # Create dictionaries for projects and tasks
 
@@ -462,9 +372,7 @@ def get_review_timesheets_for_manager(client, manager_id):
                 else:
                     obj['Task'] = {'taskID': task_id, 'taskName': "Task not found"}
         # sort the sheets based on employee name
-        filtered_timesheets = sorted(filtered_timesheets, key=lambda x: x["Employee"])
-        
-        # return make_response(jsonify({"data": str(filtered_timesheets)}), 200)
+        filtered_timesheets = sorted(filtered_timesheets, key=lambda x: x["Employee"]['employeeName'])
 
         # Check if Timesheet list is empty
         if not filtered_timesheets:
@@ -502,7 +410,6 @@ def fetch_review_timesheets(manager_uuid):
             manager_id = verify.json['_id']
             # Call the get_timesheets_for_manager function with the manager ID
             timesheets_response = get_review_timesheets_for_manager(client, manager_id)  
-            # timesheets_response = get_timesheets_for_manager(client, ObjectId("65c409092b6c3e4c3208296f"), status)  
             
             return timesheets_response
             
@@ -563,98 +470,6 @@ def get_submitted_timesheets_for_manager(client, manager_id):
         # Check if Timesheet Exists
         if len(timesheets) == 0:
             return make_response(jsonify({"message": "No Timesheets here yet"}), 200)
-        
-        # work_pipeline = [
-        #                     {"$unwind": "$assignedTo",},
-        #                     {"$lookup": {"from": "Members",
-        #                                 "localField": "assignedTo",
-        #                                 "foreignField": "_id",
-        #                                 "as": "member"}},
-        #                     {"$unwind": "$member"},
-        #                     {"$lookup": {"from": "Members",
-        #                                 "localField": "assignedBy",
-        #                                 "foreignField": "_id",
-        #                                 "as": "manager"}},
-        #                     {"$unwind": "$manager"},
-        #                     {"$lookup": {"from": "Tasks",
-        #                                 "localField": "taskID",
-        #                                 "foreignField": "_id",
-        #                                 "as": "task"}},
-        #                     {"$unwind": "$task"},
-        #                     {"$lookup": {"from": "Projects",
-        #                                 "localField": "task.projectID",
-        #                                 "foreignField": "_id",
-        #                                 "as": "project"}},
-        #                     {"$unwind": "$project"},
-        #                     {"$project": {"Assignment Name": "$name",
-        #                                     "Project": {"projectID": "$project._id",
-        #                                                 "Project Name": "$project.name"},
-        #                                     "Task": {"taskID": "$task._id",
-        #                                             "Task Name": "$task.name",
-        #                                             "Billable": "$task.billable",
-        #                                             "Task Description": "$task.description"},
-        #                                     "Employee": {"employeeID": "$member._id",
-        #                                                 "Employee Name": "$member.name"},
-        #                                     "Manager": {"managerID": "$manager._id",
-        #                                                 "Manager Name": "$manager.name"}}},
-                            # {"$match": {"Employee.employeeID": ObjectId(manager_id)}}
-        # work = list(client.WorkBaseDB.Assignments.aggregate(work_pipeline))
-        # assign_pipeline = [{
-        #                     "$lookup": {
-        #                       "from": "Members",
-        #                       "localField": "assignedTo",
-        #                       "foreignField": "_id",
-        #                       "as": "assignedTo"
-        #                     }
-        #                   },
-        #                   {
-        #                     "$addFields": {
-        #                       "assignedMembers": {
-        #                         "$map": {
-        #                           "input": "$assignedTo",
-        #                           "as": "member",
-        #                           "in": {
-        #                             "_id": "$$member._id",
-        #                             "name": "$$member.name"
-        #                           }
-        #                         }
-        #                       }
-        #                     }
-        #                   },
-        #                 {
-        #                     "$project": {
-        #                       "_id": 0,
-        #                     "assignmentID": "$_id",
-        #                     "name": 1,
-        #                     "assignedMembers": 1
-        #                     }
-        #                   },
-        #                 ]
-        # assign = list(client.WorkBaseDB.Assignments.aggregate(assign_pipeline))
-
-        # filtered_timesheets = timesheets
-        # project_dict= {item['Project']['projectID']: item['Project'] for item in work}
-        # employee_dict= {item['Employee']['employeeID']: item['Employee'] for item in work}
-        # task_dict= {item['Task']['taskID']: item['Task'] for item in work}
-        # assign_dict= {item['assignmentID']: item for item in assign}
-        # for i in range(len(filtered_timesheets)):
-        #     employee_id = filtered_timesheets[i]['Employee']
-        #     employee_item = employee_dict.get(employee_id)
-        #     if employee_item:
-        #         # Merge Project details
-        #         filtered_timesheets[i]['Employee'] = employee_item
-        #     for j in range(len(filtered_timesheets[i]['submittedSheets'])):
-        #         project_id = filtered_timesheets[i]['submittedSheets'][j].pop('projectID', None)
-        #         if project_id is not None:
-        #             project_item = project_dict.get(project_id)
-        #             if project_item:
-        #                 filtered_timesheets[i]['submittedSheets'][j]['Project'] = project_item
-        #         task_id = filtered_timesheets[i]['submittedSheets'][j].pop('taskID', None)
-        #         if task_id is not None:
-        #             task_item = task_dict.get(task_id)
-        #             if task_item:
-        #                 filtered_timesheets[i]['submittedSheets'][j]['Task'] = task_item
-
         activity_pipeline = [
                                 {"$lookup": {"from": "Projects", "localField": "projectID", "foreignField": "_id", "as": "project"}},
                                 {"$unwind": "$project"},
@@ -698,7 +513,7 @@ def get_submitted_timesheets_for_manager(client, manager_id):
                 else:
                     obj['Task'] = {'taskID': task_id, 'taskName': "Task not found"}
         # sort the sheets based on employee name
-        filtered_timesheets = sorted(filtered_timesheets, key=lambda x: x["Employee"])
+        filtered_timesheets = sorted(filtered_timesheets, key=lambda x: x["Employee"]['employeeName'])
         
         # return make_response(jsonify({"data": str(filtered_timesheets)}), 200)
 
@@ -726,6 +541,8 @@ def fetch_submitted_timesheets(manager_uuid):
     It returns a JSON response containing the timesheets or an error message.
     """
     try: 
+        # return working
+        # return make_response(jsonify({"message": "Working"}), 200)
         # Check the connection to the MongoDB server
         client = dbConnectCheck()
         if isinstance(client, MongoClient):
@@ -751,6 +568,7 @@ def fetch_submitted_timesheets(manager_uuid):
         return make_response(jsonify({"error": str(e)}), 500)
 
 def store_timesheet_object(args):
+    pass
     duration, projectID, workDay, description, status, assignGroupID, manager_id = args['duration'], args['projectID'], args['workDay'], args['description'], args['status'], args['assignGroupID'], args['manager_id']
     client = dbConnectCheck()  # create a new MongoClient instance for this thread
     startDate = datetime.strptime(duration['startDate'], "%Y-%m-%d %H:%M:%S")
@@ -774,6 +592,7 @@ def store_timesheet_object(args):
     )
 
 def store_data(data,manager_id,client):
+    pass
     try: 
         # Convert string to ObjectId
         projectID = ObjectId(data["projectID"])
@@ -863,6 +682,7 @@ def store_data(data,manager_id,client):
         return make_response(jsonify({"error": str(e)}), 500)
 
 def edit_data(data,manager_id,client):
+    pass
     try: 
         # Convert string to ObjectId
         projectID = ObjectId(data["projectID"])
@@ -1096,6 +916,7 @@ def approve_timesheet(manager_uuid, timesheet):
         return make_response(jsonify({"error": str(e)}), 500)
 
 def edit_timesheet(manager_uuid, timesheet):
+    pass
     """
     This function creates a new timesheet for a manager.
     It takes the manager ID, timesheet data, and the collection to save to as input.
@@ -1211,6 +1032,7 @@ def edit_timesheet(manager_uuid, timesheet):
         return make_response(jsonify({"error": str(e)}), 500)
 
 def delete_timesheet(manager_uuid, timesheet):
+    pass
     """
     This function creates a new timesheet for a manager.
     It takes the manager ID, timesheet data, and the collection to save to as input.
@@ -1276,6 +1098,7 @@ def delete_timesheet(manager_uuid, timesheet):
         return make_response(jsonify({"error": str(e)}), 500)
 
 def create_timesheet(manager_uuid, timesheet):
+    pass
     """
     This function creates a new timesheet for a manager.
     It takes the manager ID, timesheet data, and the collection to save to as input.
@@ -1360,6 +1183,7 @@ def create_timesheet(manager_uuid, timesheet):
         return make_response(jsonify({"error": str(e)}), 500)
 
 def get_workData(client, manager_id):
+    pass
     """
     Retrieves all assignments, projects, tasks, and employees for a manager from the database.
 
@@ -1453,6 +1277,7 @@ def get_workData(client, manager_id):
         return make_response(jsonify({"error": str(e)}), 500)
 
 def fetch_managerData(manager_uuid):
+    pass
     """
     This function fetches the manager data for assignments, projects, tasks, employees used for timesheet assignments
     It takes a manager ID as input.
