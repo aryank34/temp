@@ -154,9 +154,31 @@ def del_draft(employee_uuid, timesheet):
             if not verify.status_code == 200:
                 # If the connection fails, return the error response
                 return verify
+            employee_id = verify.json["_id"]
             
-            return make_response(jsonify({"message": "working"}), 200)
-            
+            # return working
+
+            if timesheet is not None:
+                # check if the timesheet exists
+                verify = verify_attribute(collection=client.TimesheetDB.EmployeeSheets, key="_id",attr_value=ObjectId(timesheet['employeeSheetID']))
+                if not verify.status_code == 200:
+                    # If the connection fails, return the error response
+                    return make_response(jsonify({"error": "Failed to verify timesheet"}), 500)
+                # return make_response(jsonify({"message": "working"}), 200)
+                # check if the timesheet belongs to the employee
+                current_sheet = client.TimesheetDB.EmployeeSheets.find_one({"_id": ObjectId(timesheet['employeeSheetID']), "employeeID": ObjectId(employee_id)})
+                if current_sheet is None:
+                    return make_response(jsonify({"error": "Timesheet does not exist or does not belong to the employee"}), 400)
+                # check if the timesheet is a draft
+                if current_sheet['status'] != 'Draft':
+                    return make_response(jsonify({"error": "Timesheet is not a draft"}), 400)
+                # delete the timesheet
+                verify = client.TimesheetDB.EmployeeSheets.delete_one({"_id": ObjectId(timesheet['employeeSheetID'])})
+                if verify is None:
+                    return make_response(jsonify({"error": "Failed to delete timesheet"}), 500)
+                return make_response(jsonify({"message": "Timesheet deleted successfully"}), 200)
+            else:
+                return make_response(jsonify({"error": "Timesheet not provided"}), 400)
         else:
             # If the connection fails, return the error response
             return make_response(jsonify({"error": "Failed to connect to the MongoDB server"}), 500)
