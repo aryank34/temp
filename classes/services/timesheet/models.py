@@ -33,10 +33,17 @@ class TimesheetRecord:
         }
 
 class WorkDay:
-    def __init__(self, work: bool):
+    def __init__(self, work: bool, hour: int = int(0), comment: str = str("")):
         self.work = work
-        self.hour = int(0)
-        self.comment = str("")
+        self.hour = hour
+        self.comment = comment
+
+    def to_dict(self):
+        return {
+            "work": self.work,
+            "hour": self.hour,
+            "comment": self.comment
+        }
 
 class ManagerSheetsAssign:
     def __init__(self, projectID: ObjectId, startDate: datetime, endDate: datetime, workDay: dict[str, WorkDay], description: str, status: str, assignGroupID: ObjectId):
@@ -60,19 +67,20 @@ class ManagerSheetsAssign:
         }
 
 class EmployeeSheetObject:
-    def __init__(self, projectID: ObjectId, taskID: ObjectId, workDay: dict[str, WorkDay], description: str):
+    def __init__(self, projectID: ObjectId, taskID: ObjectId, workDay: dict[str, WorkDay], description: str = str(""), billable: bool = False):
         self.projectID = projectID
         self.taskID = taskID
         self.workDay = workDay
         self.description = description
+        self.billable = billable
     def to_dict(self):
         return {
             "projectID": self.projectID,
             "taskID": self.taskID,
-            "workDay": {day: vars(workDay) for day, workDay in self.workDay.items()},
-            "description": self.description
+            "workDay": {day: workDay.to_dict() for day, workDay in self.workDay.items()},
+            "description": self.description,
+            "billable": self.billable
         }
-
 
 class EmployeeSheetInstance:
     def __init__(self, version: int, employeeSheetObject: EmployeeSheetObject):
@@ -88,15 +96,20 @@ class ManagerSheetReview:
     def __init__(self, status: str, employeeSheetID: ObjectId):
         self.employeeSheetID = employeeSheetID
         self.status = status
+    def to_dict(self):
+        return {
+            "employeeSheetID": self.employeeSheetID,
+            "status": self.status
+        }
 
 class EmployeeSheet:
-    def __init__(self, employeeID: ObjectId, managerID: ObjectId, startDate: datetime, endDate: datetime, employeeSheetObject: list[EmployeeSheetObject] = []):
+    def __init__(self, employeeID: ObjectId, managerID: ObjectId, startDate: datetime, endDate: datetime, employeeSheetObject: list[EmployeeSheetObject], status: str='Ongoing'):
         self.employeeID = employeeID
         self.managerID = managerID
         self.startDate = startDate
         self.endDate = endDate
         self.employeeSheetObject = employeeSheetObject
-        self.status = "Ongoing"
+        self.status = status
     def to_dict(self):
         return {
             "employeeID": self.employeeID,
@@ -105,7 +118,7 @@ class EmployeeSheet:
             "endDate": self.endDate,
             "employeeSheetObject": [vars(employeeSheetInstance) for employeeSheetInstance in self.employeeSheetObject],
             "status": self.status
-        } 
+        }
 
 class AssignmentInstance:
     def __init__(self, assignDate: datetime, assignmentID: ObjectId):

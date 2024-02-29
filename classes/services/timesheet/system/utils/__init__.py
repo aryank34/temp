@@ -127,7 +127,7 @@ class EmployeeSheet:
         self.startDate = startDate
         self.endDate = endDate
         self.employeeSheetObject = employeeSheetObject
-        self.status = "Testing"
+        self.status = "Submission_Check"
     def to_dict(self):
         return {
             "employeeID": self.employeeID,
@@ -412,6 +412,21 @@ def create_employee_sheets():
         # If an error occurs, log an error message
         logging.error("[ERROR] --- Error creating employee sheets: ",type(e).__name__, ":", str(e))
 
+def auto_submit_timesheet():
+    try:        
+        # create EmployeeSheets for everyone
+        create_employee_sheets()
+        # attempt to submit and obtain list of employeeIDs who have not submitted timesheets yet
+        client = dbConnectCheck()  # Check the database connection
+        if isinstance(client, MongoClient):  # If the connection is successful
+            # Get the current date and time
+            currentDate = datetime.now()
+        else: # Otherwise
+            # Log an error message
+            logging.error("[ERROR] --- Failed to connect to the MongoDB server while auto-submitting timesheets")
+    except Exception as e:
+        # If an error occurs, log an error message
+        logging.error("[ERROR] --- Error auto-submitting timesheets: ",type(e).__name__, ":", str(e))
 # Function to submit timesheets for review
 def submit_timesheet_for_review(week_check):
     try:
@@ -454,7 +469,7 @@ def submit_timesheet_for_review_thread(timesheet):
         logging.info("Running SubmitTimesheetForReviewThread...")  # Log the start of the thread
         client = dbConnectCheck()  # Check the database connection
         if isinstance(client, MongoClient):  # If the connection is successful
-            last_instance = timesheet["employeeSheetInstances"][-1]  # Get the last instance of the timesheet
+            # last_instance = timesheet["employeeSheetInstances"][-1]  # Get the last instance of the timesheet
 
             # Create a new ManagerSheetReview document with the status set to "Review" and the employeeSheetID set to the ID of the timesheet
             managerSheetReview = ManagerSheetReview(status="Review", employeeSheetID=timesheet["_id"])
@@ -466,7 +481,7 @@ def submit_timesheet_for_review_thread(timesheet):
                 {"$push": {"managerSheetsInstances": {
                     "managerSheetsObjects": newManagerSheetReview.inserted_id,
                     "lastUpdateDate": datetime.now(),
-                    "version": last_instance["version"]
+                    "version": 0
                 }}}
             )
 
@@ -494,8 +509,8 @@ def get_default_timesheets():
         if isinstance(client, MongoClient):  # If the connection is successful
             # Find all EmployeeSheets documents where the status is "Submitted" and both Saturday and Sunday are not work days
             default_timesheets = list(client.TimesheetDB.EmployeeSheets.find({"status": "Ongoing", 
-                                                                            "$and": [{"employeeSheetInstances": {"$elemMatch": {"employeeSheetObject.workDay.sat.work": False}}},
-                                                                                    {"employeeSheetInstances": {"$elemMatch": {"employeeSheetObject.workDay.sun.work": False}}}]})
+                                                                            "$and": [{"employeeSheetObject": {"$elemMatch": {"workDay.sat.work": False}}},
+                                                                                    {"employeeSheetObject": {"$elemMatch": {"workDay.sun.work": False}}}]})
             )
             return default_timesheets  # Return the found documents
         else:
@@ -512,9 +527,8 @@ def get_weekend_timesheets():
         if isinstance(client, MongoClient):  # If the connection is successful
             # Find all EmployeeSheets documents where the status is "Submitted" and either Saturday or Sunday is a work day
             weekend_timesheets = list(client.TimesheetDB.EmployeeSheets.find({"status": "Ongoing", 
-                                                                            "$or": [
-                                                                                {"employeeSheetInstances": {"$elemMatch": {"employeeSheetObject.workDay.sat.work": True}}},
-                                                                                {"employeeSheetInstances": {"$elemMatch": {"employeeSheetObject.workDay.sun.work": True}}}]})
+                                                                            "$or": [{"employeeSheetObject": {"$elemMatch": {"workDay.sat.work": True}}},
+                                                                                    {"employeeSheetObject": {"$elemMatch": {"workDay.sun.work": True}}}]})
             )
             return weekend_timesheets  # Return the found documents
         else:
@@ -539,7 +553,7 @@ class Scheduler:
             # The update_status_timesheets job runs every 15 minutes on Sundays
             logging.info('[EXEC] Adding Jobs...')
             print('Adding Jobs...')
-            scheduler.add_job(create_employee_sheets, 'cron', day_of_week='sun', hour=23, minute="0/15", timezone='America/New_York', args=[])
+            # scheduler.add_job(create_employee_sheets, 'cron', day_of_week='sun', hour=23, minute="0/15", timezone='America/New_York', args=[])
             # # The distribute_active_timesheets job runs every 15 minutes every day at 15:00 IST
             # scheduler.add_job(distribute_active_timesheets, 'cron', day_of_week='*', hour=15, minute="0/15", timezone='Asia/Kolkata', args=[])
             # The submit_timesheet_for_review job runs every 15 minutes on Fridays at 20:00 UTC

@@ -617,7 +617,7 @@ def approve_timesheet(manager_uuid, timesheet):
 
             # return make_response(jsonify({"message": "Working"}), 200)
             # Return the new timesheet as a JSON response
-            return make_response(jsonify({"message": str("Timesheet Returned Successfully")}), 200)    
+            return make_response(jsonify({"message": str("Timesheet Approved")}), 200)    
 
         else:
             # If the connection fails, return the error response
