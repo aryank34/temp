@@ -285,7 +285,7 @@ def get_review_timesheets_for_manager(client, manager_id):
                       "startDate": "$employeeSheets.startDate",
                       "endDate": "$employeeSheets.endDate",
                       "Status": "$managerSheets.status",
-                      "submittedSheets": "$employeeSheets.employeeSheetObject"
+                      "employeeSheetObjects": "$employeeSheets.employeeSheetObject"
                       }}
                     ]
 
@@ -393,32 +393,46 @@ def get_review_timesheets_for_manager(client, manager_id):
                                 {"$lookup": {"from": "Tasks", "localField": "activities.tasks", "foreignField": "_id", "as": "task"}},
                                 {"$unwind": "$task"},
                                 {"$lookup": {"from": "Members", "localField": "activities.members", "foreignField": "_id", "as": "employees"}},
-                                {"$group": {"_id": "$project._id", "project_name": {"$first": "$project.name"}, "Tasks": {"$push": "$task"}, "Employees": {"$first": "$employees"}}},
-                                {"$project": {"_id": 0, "Project": {"projectID": "$_id", "project_name": "$project_name", "Tasks": "$Tasks", "Employees": "$Employees"}}}
+                                {"$group": {"_id": "$project._id", "projectName": {"$first": "$project.name"}, "Tasks": {"$push": "$task"}, "Employees": {"$first": "$employees"}}},
+                                {"$project": {"_id": 0, "Project": {"projectID": "$_id", "projectName": "$projectName", "Tasks": "$Tasks", "Employees": "$Employees"}}},
+                                {"$addFields": {"Project.Tasks": {"$map": {"input": "$Project.Tasks","as": "task","in": {"taskID": "$$task._id","taskName": "$$task.name","billable": "$$task.billable"}}},
+                                                "Project.Employees": {"$map": {"input": "$Project.Employees","as": "employee","in": {"employeeID": "$$employee._id","employeeName": "$$employee.name","role": "$$employee.role"}}}}},
+                                {"$project": {"Project.projectID": 1,"Project.projectName": 1,"Project.Tasks.taskID": 1,"Project.Tasks.taskName": 1,"Project.Tasks.billable": 1,"Project.Employees.employeeID": 1,"Project.Employees.employeeName": 1,"Project.Employees.role": 1}}
                             ]
 
-        activity = list(client.WorkBaseDB.Activities.aggregate(activity_pipeline))
+        activity = list(client.WorkBaseDB.ProjectActivity.aggregate(activity_pipeline))
 
         filtered_timesheets = timesheets
 
         # replace projectID with project:{projectName: <ProjectName>, projectId: <ProjectID>} and taskID with task:{taskName: <TaskName>, taskId: <TaskID>} and employeeID with employee:{employeeName: <EmployeeName>, employeeId: <employeeIDID>} in the timesheet using the employee_tasks dictionary
-        for i in range(len(filtered_timesheets)):
-            for j in range(len(filtered_timesheets[i]['submittedSheets'])):
-                project_id = filtered_timesheets[i]['submittedSheets'][j].pop('projectID', None)
-                if project_id is not None:
-                    project_item = next((item for item in activity if item['Project']['projectID'] == project_id), None)
-                    if project_item:
-                        filtered_timesheets[i]['submittedSheets'][j]['Project'] = project_item['Project']
-                task_id = filtered_timesheets[i]['submittedSheets'][j].pop('taskID', None)
-                if task_id is not None:
-                    task_item = next((item for item in project_item['Project']['Tasks'] if item['_id'] == task_id), None)
-                    if task_item:
-                        filtered_timesheets[i]['submittedSheets'][j]['Task'] = task_item
-                employee_id = filtered_timesheets[i]['submittedSheets'][j].pop('employeeID', None)
-            if employee_id is not None:
-                employee_item = next((item for item in project_item['Project']['Employees'] if item['_id'] == employee_id), None)
-                if employee_item:
-                    filtered_timesheets[i]['Employee'] = employee_item
+        # Create dictionaries for projects and tasks
+
+        projects_dict = {project['Project']['projectID']: project['Project']['projectName'] for project in activity}
+        tasks_dict = {task['taskID']: task['taskName'] for project in activity for task in project['Project']['Tasks']}
+        employees_dict = {employee['employeeID']: employee['employeeName'] for project in activity for employee in project['Project']['Employees']}
+
+       # Replace projectID and taskID in timesheets
+        for timesheet in filtered_timesheets:
+            employee_id = timesheet.pop('Employee', None)
+            if employee_id is not None and employee_id in employees_dict:
+                timesheet['Employee'] = {'employeeID': employee_id, 'employeeName': employees_dict[employee_id]}
+            else:
+                timesheet['Employee'] = {'employeeID': employee_id, 'employeeName': "Employee not found"}
+            for obj in timesheet['employeeSheetObjects']:
+                project_id = obj.pop('projectID', None)
+                if project_id is not None and project_id in projects_dict:
+                    obj['Project'] = {'projectID': project_id, 'projectName': projects_dict[project_id]}
+                else:
+                    obj['Project'] = {'projectID': project_id, 'projectName': "Project not found"}
+                task_id = obj.pop('taskID', None)
+                if task_id is not None and task_id in tasks_dict:
+                    obj['Task'] = {'taskID': task_id, 'taskName': tasks_dict[task_id]}
+                else:
+                    obj['Task'] = {'taskID': task_id, 'taskName': "Task not found"}
+        # sort the sheets based on employee name
+        filtered_timesheets = sorted(filtered_timesheets, key=lambda x: x["Employee"])
+        
+        # return make_response(jsonify({"data": str(filtered_timesheets)}), 200)
 
         # Check if Timesheet list is empty
         if not filtered_timesheets:
