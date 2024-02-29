@@ -1,12 +1,12 @@
 # api/services/timesheet/employee/routes.py
 from flask import Blueprint, jsonify, request
-
+from flask_cors import CORS
 # from ....tokenAuth import tokenAuth
 
 from ...loginAuth.tokenAuth import tokenAuth
 auth = tokenAuth()
 
-from .utils import employee_timesheet_operation, fetch_draft_timesheets, fetch_employee_project_tasks, fetch_submitted_timesheets, fetch_timesheets, edit_timesheet
+from .utils import employee_timesheet_operation, fetch_draft_timesheets, fetch_employee_project_tasks, fetch_submitted_timesheets, fetch_timesheets, edit_timesheet, fetch_total_timesheets
 
 # auth = tokenAuth()
 
@@ -23,6 +23,7 @@ def manage_timesheet():
 
             # Call the fetch_employeeTimesheets function from the utils module
             employeeTimesheets_response = fetch_timesheets(uuid)
+            # employeeTimesheets_response = fetch_total_timesheets(uuid,['Ongoing', 'Returned'])
 
             # Return the response from the userType function
             return employeeTimesheets_response
@@ -44,7 +45,7 @@ def draft_timesheet():
 
             # Call the fetch_employeeTimesheets function from the utils module
             employeeTimesheets_response = fetch_draft_timesheets(uuid)
-
+            # employeeTimesheets_response = fetch_total_timesheets(uuid,['Draft'])
             # Return the response from the userType function
             return employeeTimesheets_response
 
@@ -64,7 +65,7 @@ def submitted_timesheet():
 
             # Call the fetch_employeeTimesheets function from the utils module
             employeeTimesheets_response = fetch_submitted_timesheets(uuid)
-
+            # employeeTimesheets_response = fetch_total_timesheets(uuid,['Reviewing', 'Submitted'])
             # Return the response from the userType function
             return employeeTimesheets_response
 

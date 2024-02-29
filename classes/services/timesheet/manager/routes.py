@@ -1,8 +1,8 @@
 # api/services/timesheet/manager/routes.py
-from flask import Blueprint, jsonify, request
+from flask import Blueprint, jsonify, make_response, request
 
 # Import custom module
-from .utils import edit_timesheet, create_timesheet, fetch_timesheets, fetch_managerData, return_timesheet, approve_timesheet, delete_timesheet
+from .utils import edit_timesheet, create_timesheet, fetch_review_timesheets, fetch_timesheets, fetch_managerData, return_timesheet, approve_timesheet, delete_timesheet
 
 from ...loginAuth.tokenAuth import tokenAuth
 auth = tokenAuth()
@@ -56,7 +56,7 @@ def review_timesheet():
         uuid = tokenAuth.token_decode(request.headers.get('Authorization'))['payload']['id']
 
         # Call the fetch_managerTimesheets function from the utils module
-        managerTimesheets_response = fetch_timesheets(uuid, status="Review")
+        managerTimesheets_response = fetch_review_timesheets(uuid)
 
         # Return the response from the userType function
         return managerTimesheets_response
@@ -179,6 +179,7 @@ def approve_review_timesheet():
 
         # Access the 'timesheet' field, which is a nested JSON object
         timesheet = payload.get('timesheet')
+        # return make_response(jsonify(timesheet), 200)
 
         # Call the create_timesheet function from the utils module
         approve_timesheet_response = approve_timesheet(uuid, timesheet)
