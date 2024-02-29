@@ -2,7 +2,7 @@
 from flask import Blueprint, jsonify, make_response, request
 
 # Import custom module
-from .utils import edit_timesheet, create_timesheet, fetch_review_timesheets, fetch_timesheets, fetch_managerData, return_timesheet, approve_timesheet, delete_timesheet
+from .utils import edit_timesheet, create_timesheet, fetch_review_timesheets, fetch_submitted_timesheets, fetch_timesheets, fetch_managerData, return_timesheet, approve_timesheet, delete_timesheet
 
 from ...loginAuth.tokenAuth import tokenAuth
 auth = tokenAuth()
@@ -38,6 +38,25 @@ def manage_timesheet():
 
         # Call the fetch_managerTimesheets function from the utils module
         managerTimesheets_response = fetch_timesheets(uuid, status="Assign")
+
+        # Return the response from the userType function
+        return managerTimesheets_response
+
+    except Exception as e:
+        # Handle any exceptions and return an error response
+        error_message = str(e)
+        return jsonify({'error': error_message}), 500
+
+@manager_timesheet_bp.route("/timesheet/manager/submitted", methods=["GET"])
+@auth.token_auth("/timesheet/manager/submitted")
+def submitted_history_timesheet():
+    try:
+        # Get the 'uid' from the request's JSON data
+        # uuid = request.json.get("id")
+        uuid = tokenAuth.token_decode(request.headers.get('Authorization'))['payload']['id']
+
+        # Call the fetch_managerTimesheets function from the utils module
+        managerTimesheets_response = fetch_submitted_timesheets(uuid)
 
         # Return the response from the userType function
         return managerTimesheets_response

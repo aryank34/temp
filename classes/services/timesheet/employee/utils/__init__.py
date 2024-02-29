@@ -139,6 +139,31 @@ def fetch_total_timesheets(employee_uuid, status):
         # If an error occurs, return the error response
         return make_response(jsonify({"error": str(e)}), 500)
 
+def del_draft(employee_uuid, timesheet):
+    '''
+    This function deletes a draft timesheet for an employee.
+    It takes an employee ID and the timesheet ID as input.
+    It returns a JSON response containing the status of the deletion or an error message.
+    '''
+    try:
+        # Check the connection to the MongoDB server
+        client = dbConnectCheck()
+        if isinstance(client, MongoClient):
+            # check if the userID is valid
+            verify = get_WorkAccount(client,employee_uuid)
+            if not verify.status_code == 200:
+                # If the connection fails, return the error response
+                return verify
+            
+            return make_response(jsonify({"message": "working"}), 200)
+            
+        else:
+            # If the connection fails, return the error response
+            return make_response(jsonify({"error": "Failed to connect to the MongoDB server"}), 500)
+    except Exception as e:
+        # If an error occurs, return the error response
+        return make_response(jsonify({"error": str(e)}), 500)
+
 def get_submitted_timesheets_for_employee(employee_id):
     """
     Retrieves all timesheets for an employee from the database.
