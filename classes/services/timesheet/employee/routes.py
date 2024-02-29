@@ -14,80 +14,84 @@ employee_timesheet_bp = Blueprint("employee_timesheet", __name__)
 
 @employee_timesheet_bp.route("/timesheet/employee/active", methods=["GET"])
 @auth.token_auth("/timesheet/employee/active")
-# @auth.token_auth("/timesheet/employee/active")
 def manage_timesheet():
-    try:
-        # Get the 'uuid' from the request's JSON data
-        uuid = tokenAuth.token_decode(request.headers.get('Authorization'))['payload']['id']
-        # uuid = request.json.get("id")
+    if request.method == "GET":
+        try:
+            # Get the 'uuid' from the request's JSON data
+            uuid = tokenAuth.token_decode(request.headers.get('Authorization'))['payload']['id']
+            # uuid = request.json.get("id")
 
-        # Call the fetch_employeeTimesheets function from the utils module
-        employeeTimesheets_response = fetch_timesheets(uuid)
+            # Call the fetch_employeeTimesheets function from the utils module
+            employeeTimesheets_response = fetch_timesheets(uuid)
 
-        # Return the response from the userType function
-        return employeeTimesheets_response
+            # Return the response from the userType function
+            return employeeTimesheets_response
 
-    except Exception as e:
-        # Handle any exceptions and return an error response
-        error_message = str(e)
-        return jsonify({'error': error_message}), 500
+        except Exception as e:
+            # Handle any exceptions and return an error response
+            error_message = str(e)
+            return jsonify({'error': error_message}), 500
+    
 
 @employee_timesheet_bp.route("/timesheet/employee/draft", methods=["GET"])
 @auth.token_auth("/timesheet/employee/draft")
 def draft_timesheet():
-    try:
-        # Get the 'uuid' from the request's JSON data
-        uuid = tokenAuth.token_decode(request.headers.get('Authorization'))['payload']['id']
-        # uuid = request.json.get("id")
+    if request.method == "GET":
+        try:
+            # Get the 'uuid' from the request's JSON data
+            uuid = tokenAuth.token_decode(request.headers.get('Authorization'))['payload']['id']
+            # uuid = request.json.get("id")
 
-        # Call the fetch_employeeTimesheets function from the utils module
-        employeeTimesheets_response = fetch_draft_timesheets(uuid)
+            # Call the fetch_employeeTimesheets function from the utils module
+            employeeTimesheets_response = fetch_draft_timesheets(uuid)
 
-        # Return the response from the userType function
-        return employeeTimesheets_response
+            # Return the response from the userType function
+            return employeeTimesheets_response
 
-    except Exception as e:
-        # Handle any exceptions and return an error response
-        error_message = str(e)
-        return jsonify({'error': error_message}), 500
+        except Exception as e:
+            # Handle any exceptions and return an error response
+            error_message = str(e)
+            return jsonify({'error': error_message}), 500
 
 @employee_timesheet_bp.route("/timesheet/employee/submitted", methods=["GET"])
 @auth.token_auth("/timesheet/employee/submitted")
 def submitted_timesheet():
-    try:
-        # Get the 'uuid' from the request's JSON data
-        uuid = tokenAuth.token_decode(request.headers.get('Authorization'))['payload']['id']
-        # uuid = request.json.get("id")
+    if request.method == "GET":
+        try:
+            # Get the 'uuid' from the request's JSON data
+            uuid = tokenAuth.token_decode(request.headers.get('Authorization'))['payload']['id']
+            # uuid = request.json.get("id")
 
-        # Call the fetch_employeeTimesheets function from the utils module
-        employeeTimesheets_response = fetch_submitted_timesheets(uuid)
+            # Call the fetch_employeeTimesheets function from the utils module
+            employeeTimesheets_response = fetch_submitted_timesheets(uuid)
 
-        # Return the response from the userType function
-        return employeeTimesheets_response
+            # Return the response from the userType function
+            return employeeTimesheets_response
 
-    except Exception as e:
-        # Handle any exceptions and return an error response
-        error_message = str(e)
-        return jsonify({'error': error_message}), 500
+        except Exception as e:
+            # Handle any exceptions and return an error response
+            error_message = str(e)
+            return jsonify({'error': error_message}), 500
 
 @employee_timesheet_bp.route("/timesheet/employee", methods=["GET"])
 @auth.token_auth("/timesheet/employee")
 def fetch_data():
-    try:
-        # Get the 'uuid' from the request's JSON data
-        uuid = tokenAuth.token_decode(request.headers.get('Authorization'))['payload']['id']
-        # uuid = request.json.get("id")
+    if request.method == "GET":
+        try:
+            # Get the 'uuid' from the request's JSON data
+            uuid = tokenAuth.token_decode(request.headers.get('Authorization'))['payload']['id']
+            # uuid = request.json.get("id")
 
-        # Call the fetch_employeeTimesheets function from the utils module
-        employeeProjectsTasks_response = fetch_employee_project_tasks(uuid)
+            # Call the fetch_employeeTimesheets function from the utils module
+            employeeProjectsTasks_response = fetch_employee_project_tasks(uuid)
 
-        # Return the response from the userType function
-        return employeeProjectsTasks_response
+            # Return the response from the userType function
+            return employeeProjectsTasks_response
 
-    except Exception as e:
-        # Handle any exceptions and return an error response
-        error_message = str(e)
-        return jsonify({'error': error_message}), 500
+        except Exception as e:
+            # Handle any exceptions and return an error response
+            error_message = str(e)
+            return jsonify({'error': error_message}), 500
 
 # @employee_timesheet_bp.route("/timesheet/employee/save", methods=["POST"])
 # @auth.token_auth("/timesheet/employee/save")
@@ -118,49 +122,51 @@ def fetch_data():
 @employee_timesheet_bp.route("/timesheet/employee/submit", methods=["POST"])
 @auth.token_auth("/timesheet/employee/submit")
 def edit_existing_timesheet():
-    try:
-        # Get the JSON data sent with the POST request
-        payload = request.get_json()
+    if request.method == "POST":
+        try:
+            # Get the JSON data sent with the POST request
+            payload = request.get_json()
 
-        # Access the 'uid' field
-        # uuid = payload.get('id')
-        uuid = tokenAuth.token_decode(request.headers.get('Authorization'))['payload']['id']
+            # Access the 'uid' field
+            # uuid = payload.get('id')
+            uuid = tokenAuth.token_decode(request.headers.get('Authorization'))['payload']['id']
 
-        # Access the 'timesheet' field, which is a nested JSON object
-        timesheet = payload.get('timesheet')
+            # Access the 'timesheet' field, which is a nested JSON object
+            timesheet = payload.get('timesheet')
 
-        # Call the create_timesheet function from the utils module
-        edit_timesheet_response = edit_timesheet(uuid, timesheet)
+            # Call the create_timesheet function from the utils module
+            edit_timesheet_response = edit_timesheet(uuid, timesheet)
 
-        # Return the response from the userType function
-        return edit_timesheet_response
+            # Return the response from the userType function
+            return edit_timesheet_response
 
-    except Exception as e:
-        # Handle any exceptions and return an error response
-        error_message = str(e)
-        return jsonify({'error': error_message}), 500
+        except Exception as e:
+            # Handle any exceptions and return an error response
+            error_message = str(e)
+            return jsonify({'error': error_message}), 500
 
 @employee_timesheet_bp.route("/timesheet/employee/action", methods=["POST"])
 @auth.token_auth("/timesheet/employee/action")
 def operation_on_timesheet():
-    try:
-        # Get the JSON data sent with the POST request
-        payload = request.get_json()
+    if request.method == "POST":
+        try:
+            # Get the JSON data sent with the POST request
+            payload = request.get_json()
 
-        # Access the 'uid' field
-        # uuid = payload.get('id')
-        uuid = tokenAuth.token_decode(request.headers.get('Authorization'))['payload']['id']
+            # Access the 'uid' field
+            # uuid = payload.get('id')
+            uuid = tokenAuth.token_decode(request.headers.get('Authorization'))['payload']['id']
 
-        # Access the 'timesheet' field, which is a nested JSON object
-        timesheet = payload.get('timesheet')
+            # Access the 'timesheet' field, which is a nested JSON object
+            timesheet = payload.get('timesheet')
 
-        # Call the create_timesheet function from the utils module
-        edit_timesheet_response = employee_timesheet_operation(uuid, timesheet)
+            # Call the create_timesheet function from the utils module
+            edit_timesheet_response = employee_timesheet_operation(uuid, timesheet)
 
-        # Return the response from the userType function
-        return edit_timesheet_response
+            # Return the response from the userType function
+            return edit_timesheet_response
 
-    except Exception as e:
-        # Handle any exceptions and return an error response
-        error_message = str(e)
+        except Exception as e:
+            # Handle any exceptions and return an error response
+            error_message = str(e)
         return jsonify({'error': error_message}), 500

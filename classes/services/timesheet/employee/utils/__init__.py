@@ -492,40 +492,49 @@ def employee_timesheet_operation(employee_uuid, timesheet):
                     employeSheetObjectList.append(new_employeeSheetObject)
                 # create new timesheet
                 # get manager of employee
-                # return make_response(jsonify({"message": str(employeSheetObjectList)}), 200)
                 managerID = client.WorkBaseDB.Members.find_one({"_id": ObjectId(employee_id)},{"managerID": "$reportsTo"})['managerID']
+                if managerID is None:
+                    return make_response(jsonify({"error": "Manager not found"}), 400)
                 if 'action' in timesheet:
                     if timesheet['action'].lower() == "draft": 
                         new_timesheet = EmployeeSheet(employeeID=ObjectId(employee_id), managerID=ObjectId(managerID), employeeSheetObject=employeSheetObjectList, startDate=current_monday, endDate=next_monday, status='Draft')
                         new_timesheet = client.TimesheetDB.EmployeeSheets.insert_one(new_timesheet.to_dict())
+                        if new_timesheet is None:
+                            return make_response(jsonify({"error": "Failed to create Timesheet"}), 500)
                         # Return the result message
                         return make_response(jsonify({"message": "Timesheet added as Draft"}), 200)           
                     elif timesheet['action'].lower() == "submit":
                         # check if same week has already submitted or reviewing timesheets
-                        timesheet = client.TimesheetDB.EmployeeSheets.find_one({"employeeID": employee_id, "startDate": current_monday, "endDate": next_monday, "status": {"$in": ["Reviewing"]}})
+                        timesheet = client.TimesheetDB.EmployeeSheets.find_one({"employeeID": ObjectId(employee_id), "startDate": current_monday, "endDate": next_monday, "status": {"$in": ["Reviewing"]}})
                         if timesheet is not None:
                             return make_response(jsonify({"error": "Timesheet for this week already exists"}), 400)
                         # create new timesheet                        
-                        new_timesheet = EmployeeSheet(employeeID=employee_id, managerID=managerID, employeeSheetObject=employeSheetObjectList, startDate=current_monday, endDate=next_monday, status='Reviewing')
+                        new_timesheet = EmployeeSheet(employeeID=ObjectId(employee_id), managerID=ObjectId(managerID), employeeSheetObject=employeSheetObjectList, startDate=current_monday, endDate=next_monday, status='Reviewing')
                         new_timesheet = client.TimesheetDB.EmployeeSheets.insert_one(new_timesheet.to_dict())
+                        if new_timesheet is None:
+                            return make_response(jsonify({"error": "Failed to create Timesheet"}), 500)
                         # create manager Sheet Review object
                         # create new ManagerSheetReview document
                         managerSheetReview = ManagerSheetReview(status="Review", employeeSheetID=ObjectId(new_timesheet.inserted_id))
                         newManagerSheetReview = client.TimesheetDB.ManagerSheets.insert_one(managerSheetReview.to_dict())
+                        if newManagerSheetReview is None:
+                            return make_response(jsonify({"error": "Failed to create ManagerSheetReview"}), 500)
                         # return make_response(jsonify({"message": str("OK")}), 200)
                         # update the TimesheetRecords for the new ManagerSheet, replacing the old ManagerSheet with the new one 
                         # create new managerSheetsInstance
                         # Add the new ManagerSheetReview document to the TimesheetRecords collection
-                        document = client.TimesheetDB.TimesheetRecords.find_one({"managerID": managerID})
+                        document = client.TimesheetDB.TimesheetRecords.find_one({"managerID": ObjectId(managerID)})
+                        # return make_response(jsonify({"message": str(document)}), 200)
                         if document:
-                            client.TimesheetDB.TimesheetRecords.update_one(
-                                {"managerID": timesheet['managerID']},
+                            document = client.TimesheetDB.TimesheetRecords.update_one(
+                                {"managerID": ObjectId(managerID)},
                                 {"$push": {"managerSheetsInstances": {
-                                    "managerSheetsObjects": newManagerSheetReview.inserted_id,
+                                    "managerSheetsObjects": ObjectId(newManagerSheetReview.inserted_id),
                                     "lastUpdateDate": datetime.now(),
                                     "version": 0
                                 }}}
                             )
+                            # return make_response(jsonify({"message": str(document)}), 200)
                         else:
                             client.TimesheetDB.TimesheetRecords.insert_one({"managerID": managerID, "managerSheetsInstances": [{"managerSheetsObjects": newManagerSheetReview.inserted_id, "lastUpdateDate": datetime.now(), "version": 0}]})
                         # Return the result message
@@ -636,7 +645,7 @@ def edit_timesheet(employee_uuid, timesheet):
                 # If the connection fails, return the error response
                 return verify
             employee_id= verify.json['_id']
-            employee_id = "65c3fecb2b6c3e4c32082962"
+            # employee_id = "65c3fecb2b6c3e4c32082962"
 
             if timesheet is not None:
                 # check if employeeSheetsID is valid

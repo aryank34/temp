@@ -1,22 +1,15 @@
 # Import necessary modules
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta
-import threading
+# import threading
 from bson import ObjectId
 from flask import Flask, jsonify, make_response
 from pymongo import MongoClient
 import os
-from dotenv import load_dotenv, find_dotenv
+# from dotenv import load_dotenv, find_dotenv
 import json
 from ...models import ManagerSheetsAssign,ManagerSheetsInstance,WorkDay
 from ....connectors.dbConnector import dbConnectCheck, get_WorkAccount, verify_attribute
-
-# Create a new Flask web server instance
-app = Flask(__name__)
-
-# Load environment variables from a .env file
-load_dotenv(find_dotenv())
-
 # Get the MongoDB host URI from environment variables
 mongo_host = os.environ.get("MONGO_HOST_prim")
 
@@ -94,7 +87,7 @@ def get_timesheets_for_manager(client, manager_id, status=None):
                               "startDate": "$employeeSheets.startDate",
                               "endDate": "$employeeSheets.endDate",
                               "Status": "$managerSheets.status",
-                              "submittedSheets": "$employeeSheets.employeeSheetInstances"
+                              "submittedSheets": "$employeeSheets.employeeSheetObject"
                               }}
                             ]
 
@@ -220,16 +213,16 @@ def get_timesheets_for_manager(client, manager_id, status=None):
                     # Merge Project details
                     filtered_timesheets[i]['Employee'] = employee_item
                 for j in range(len(filtered_timesheets[i]['submittedSheets'])):
-                    project_id = filtered_timesheets[i]['submittedSheets'][j]['employeeSheetObject'].pop('projectID', None)
+                    project_id = filtered_timesheets[i]['submittedSheets'][j].pop('projectID', None)
                     if project_id is not None:
                         project_item = project_dict.get(project_id)
                         if project_item:
-                            filtered_timesheets[i]['submittedSheets'][j]['employeeSheetObject']['Project'] = project_item
-                    task_id = filtered_timesheets[i]['submittedSheets'][j]['employeeSheetObject'].pop('taskID', None)
+                            filtered_timesheets[i]['submittedSheets'][j]['Project'] = project_item
+                    task_id = filtered_timesheets[i]['submittedSheets'][j].pop('taskID', None)
                     if task_id is not None:
                         task_item = task_dict.get(task_id)
                         if task_item:
-                            filtered_timesheets[i]['submittedSheets'][j]['employeeSheetObject']['Task'] = task_item
+                            filtered_timesheets[i]['submittedSheets'][j]['Task'] = task_item
 
         # Check if Timesheet list is empty
         if not filtered_timesheets:
@@ -273,6 +266,7 @@ def fetch_timesheets(manager_uuid, status=None):
             manager_id = verify.json['_id']
             # Call the get_timesheets_for_manager function with the manager ID
             timesheets_response = get_timesheets_for_manager(client, manager_id, status)  
+            # timesheets_response = get_timesheets_for_manager(client, ObjectId("65c409092b6c3e4c3208296f"), status)  
             
             return timesheets_response
             
