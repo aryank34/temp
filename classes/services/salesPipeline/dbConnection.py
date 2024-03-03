@@ -333,7 +333,14 @@ def calculateSales(year, type, data):
                     # print(prior_data)
                 prior_total_pipeline = sum(prior_numeric_values)
             # print(type)
+                
+            #to set target goal, if number of employees change, target will be set manually,
+            #otherwise it would be 1.3 times the previous year target
+
             target_total = round(+prior_total_pipeline*1.3,2)
+
+
+
             goal_achievement = round(+current_total_pipeline - target_total,2)
             goal_achievement_message=""
             if goal_achievement > 0:
