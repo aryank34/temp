@@ -258,23 +258,23 @@ def transferCurrentToSale(data, year):
         data_obj={}
 
         data_obj['Type'] = new_type
-        data['Customer'] = data['Customer']
-        data['TypeOfProject'] = data['TypeOfProject']
-        data['Channel'] = data['Channel']
-        data['Reseller'] = data['Reseller']
-        data['EC_PointOfContact'] = data['EC_PointOfContact']
-        data['DateSold'] = data['DateSold']
-        data['Quarter'] = int(data['Quarter'])
-        data['Year'] = int(data['Year'])    
-        data['Stage'] = data['Stage']
-        data['ProjectSize'] = data['ProjectSize']
-        data['InvoiceIssueDate'] = data['InvoiceIssueDate']
-        data['PaymentTerms'] = int(data['PaymentTerms'])
-        data['DelinquentTerms'] = int(data['DelinquentTerms'])
-        data['PaymentStatus'] = data['PaymentStatus']
-        data['PaymentStatus'] = data['PaymentStatus']
-        data['PO_Order'] = data['PO_Order']
-        data['NotesOnFollow'] = data['NotesOnFollow']
+        data_obj['Customer'] = data['Customer']
+        data_obj['TypeOfProject'] = data['TypeOfProject']
+        data_obj['Channel'] = data['Channel']
+        data_obj['Reseller'] = data['Reseller']
+        data_obj['EC_PointOfContact'] = data['EC_PointOfContact']
+        data_obj['DateSold'] = data['DateSold']
+        data_obj['Quarter'] = int(data['Quarter'])
+        data_obj['Year'] = int(data['Year'])    
+        data_obj['Stage'] = data['Stage']
+        data_obj['ProjectSize'] = data['ProjectSize']
+        data_obj['InvoiceIssueDate'] = data['InvoiceIssueDate']
+        data_obj['PaymentTerms'] = int(data['PaymentTerms'])
+        data_obj['DelinquentTerms'] = int(data['DelinquentTerms'])
+        data_obj['PaymentStatus'] = data['PaymentStatus']
+        data_obj['PaymentStatus'] = data['PaymentStatus']
+        data_obj['PO_Order'] = data['PO_Order']
+        data_obj['NotesOnFollow'] = data['NotesOnFollow']
 
         if(sp[collection_name].count_documents({"_id":_id},limit = 1) == 1):
             sp[collection_name].update_one({"_id":_id}, {"$set":data_obj}) 
