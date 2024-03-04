@@ -16,18 +16,19 @@ project_manager_bp = Blueprint("project_manager_bp", __name__)
 @auth.token_auth("/projects")
 def get_projects():
     try:
-        # Get the 'uid' from the request's JSON data
-        # uid = request.json.get("uid")
-        uuid = tokenAuth.token_decode(request.headers.get('Authorization'))['payload']['id']
+        if request.method == 'GET':
+            # Get the 'uid' from the request's JSON data
+            # uid = request.json.get("uid")
+            uuid = tokenAuth.token_decode(request.headers.get('Authorization'))['payload']['id']
 
-        superAdmin = bool(isSuperAdmin(uuid).json['response'])
-        # Call the userType function from the utils module
-        user_type = userType(uuid).json['userType']
-        # Call the userType function from the utils module
-        fetch_projects_response = fetch_projects(account_uuid= uuid, user_type=user_type, superAdmin=superAdmin)
+            superAdmin = bool(isSuperAdmin(uuid).json['response'])
+            # Call the userType function from the utils module
+            user_type = userType(uuid).json['userType']
+            # Call the userType function from the utils module
+            fetch_projects_response = fetch_projects(account_uuid= uuid, user_type=user_type, superAdmin=superAdmin)
 
-        # Return the response from the userType function
-        return fetch_projects_response
+            # Return the response from the userType function
+            return fetch_projects_response
 
     except Exception as e:
         # Handle any exceptions and return an error response
@@ -76,23 +77,24 @@ def create_new_projects():
 @auth.token_auth("/projects/teams/create")
 def create_new_team():
     try:
-        # Get the 'uid' from the request's JSON data
-        # uid = request.json.get("uid")
-        uuid = tokenAuth.token_decode(request.headers.get('Authorization'))['payload']['id']
+        if request.method == 'POST':
+            # Get the 'uid' from the request's JSON data
+            # uid = request.json.get("uid")
+            uuid = tokenAuth.token_decode(request.headers.get('Authorization'))['payload']['id']
 
-        # # Call the userType function from the utils module
-        superAdmin = True
-        # superAdmin = bool(isSuperAdmin(uuid).json['response'])
-        # Get the JSON data sent with the POST request
-        payload = request.get_json()
-        # Access the 'timesheet' field, which is a nested JSON object
-        team_data = payload.get('team')
+            # # Call the userType function from the utils module
+            superAdmin = True
+            # superAdmin = bool(isSuperAdmin(uuid).json['response'])
+            # Get the JSON data sent with the POST request
+            payload = request.get_json()
+            # Access the 'timesheet' field, which is a nested JSON object
+            team_data = payload.get('team')
 
-        if superAdmin:
-            fetch_teams_response = create_teams(uuid, team_data)
+            if superAdmin:
+                fetch_teams_response = create_teams(uuid, team_data)
 
-        # Return the response from the userType function
-        return fetch_teams_response
+            # Return the response from the userType function
+            return fetch_teams_response
 
     except Exception as e:
         # Handle any exceptions and return an error response
@@ -158,18 +160,19 @@ def create_new_task():
 @auth.token_auth("/projects/tasks/assignment")
 def create_new_assignment():
     try:
-        # Get the 'uid' from the request's JSON data
-        # uid = request.json.get("uid")
-        uuid = tokenAuth.token_decode(request.headers.get('Authorization'))['payload']['id']
-        # Get the JSON data sent with the POST request
-        payload = request.get_json()
-        # Access the 'timesheet' field, which is a nested JSON object
-        task_data = payload.get('task')
+        if request.method == 'POST':
+            # Get the 'uid' from the request's JSON data
+            # uid = request.json.get("uid")
+            uuid = tokenAuth.token_decode(request.headers.get('Authorization'))['payload']['id']
+            # Get the JSON data sent with the POST request
+            payload = request.get_json()
+            # Access the 'timesheet' field, which is a nested JSON object
+            task_data = payload.get('task')
 
-        fetch_tasks_response = create_new_task_assignment(uuid, task_data)
+            fetch_tasks_response = create_new_task_assignment(uuid, task_data)
 
-        # Return the response from the userType function
-        return fetch_tasks_response
+            # Return the response from the userType function
+            return fetch_tasks_response
 
     except Exception as e:
         # Handle any exceptions and return an error response
@@ -181,18 +184,19 @@ def create_new_assignment():
 @auth.token_auth("/projects/tasks/assigneeGroup")
 def create_new_assignmentGroup():
     try:
-        # Get the 'uid' from the request's JSON data
-        # uid = request.json.get("uid")
-        uuid = tokenAuth.token_decode(request.headers.get('Authorization'))['payload']['id']
-        # Get the JSON data sent with the POST request
-        payload = request.get_json()
-        # Access the 'timesheet' field, which is a nested JSON object
-        task_data = payload.get('task')
+        if request.method == 'POST':
+            # Get the 'uid' from the request's JSON data
+            # uid = request.json.get("uid")
+            uuid = tokenAuth.token_decode(request.headers.get('Authorization'))['payload']['id']
+            # Get the JSON data sent with the POST request
+            payload = request.get_json()
+            # Access the 'timesheet' field, which is a nested JSON object
+            task_data = payload.get('task')
 
-        fetch_tasks_response = create_new_assignment_group(uuid, task_data)
+            fetch_tasks_response = create_new_assignment_group(uuid, task_data)
 
-        # Return the response from the userType function
-        return fetch_tasks_response
+            # Return the response from the userType function
+            return fetch_tasks_response
 
     except Exception as e:
         # Handle any exceptions and return an error response
@@ -204,18 +208,19 @@ def create_new_assignmentGroup():
 @auth.token_auth("/projects/tasks/edit")
 def update_task():
     try:
-        # Get the 'uid' from the request's JSON data
-        # uid = request.json.get("uid")
-        uuid = tokenAuth.token_decode(request.headers.get('Authorization'))['payload']['id']
-        # Get the JSON data sent with the POST request
-        payload = request.get_json()
-        # Access the 'timesheet' field, which is a nested JSON object
-        task_data = payload.get('task')
+        if request.method == 'POST':
+            # Get the 'uid' from the request's JSON data
+            # uid = request.json.get("uid")
+            uuid = tokenAuth.token_decode(request.headers.get('Authorization'))['payload']['id']
+            # Get the JSON data sent with the POST request
+            payload = request.get_json()
+            # Access the 'timesheet' field, which is a nested JSON object
+            task_data = payload.get('task')
 
-        fetch_tasks_response = edit_tasks(uuid, task_data)
+            fetch_tasks_response = edit_tasks(uuid, task_data)
 
-        # Return the response from the userType function
-        return fetch_tasks_response
+            # Return the response from the userType function
+            return fetch_tasks_response
 
     except Exception as e:
         # Handle any exceptions and return an error response

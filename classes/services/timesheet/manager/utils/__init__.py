@@ -513,7 +513,7 @@ def get_submitted_timesheets_for_manager(client, manager_id):
                 else:
                     obj['Task'] = {'taskID': task_id, 'taskName': "Task not found"}
         # sort the sheets based on employee name
-        filtered_timesheets = sorted(filtered_timesheets, key=lambda x: x["Employee"]['employeeName'])
+        filtered_timesheets = sorted(filtered_timesheets, key=lambda x: x["Employee"]['employeeName'], reverse=True)
         
         # return make_response(jsonify({"data": str(filtered_timesheets)}), 200)
 
