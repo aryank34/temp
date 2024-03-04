@@ -51,6 +51,10 @@ fs = GridFS(db, collection='employeeData')
 
 def checkUserValidity(id):
     try:
+        #set total Active employees
+        setTotalEmployees()
+
+
         # print(UUID(uid))
         #get the user by matching the uuid from db
         # user = userProvisioningData.find_one({'id':UUID(uid)},{'_id':0,'Name':1,'id':1})
@@ -82,6 +86,9 @@ def checkUserValidity(id):
             jwtoken = jwt.encode(payload, secret, algorithm=algo)
             # print(jwt.encode(payload, secret, algorithm=algo))
 
+            #set total active employees
+            setTotalEmployees()
+
             return make_response({"token":jwtoken}, 200)
         elif user['status'] == 'Non-Active':
             return make_response({"ERROR":"User is Not-Active"})
@@ -109,7 +116,7 @@ def get_profile_picture(id):
 #get data from mongodb
 def get_employee_data(id):
     try:
-
+        
         employee = list(employeeData.find({'id':UUID(id)},{'_id':0,'id':1,'emp_id':1,'FirstName':1,'LastName':1,'mail':1,'team':1,'Designation':1,'ContactNo':1,'Address':1,'ReportingTo':1,'status':1,'Date_of_Joining':1,'Emergency_Contact_Name':1,'Emergency_Contact_Number':1,'Emergency_Relation':1,'Certificate_Name':1, 'profile_picture_id':1}))[0]
         if "profile_picture_id" not in employee:
             employee["profile_picture_id"] = ""
@@ -124,6 +131,8 @@ def get_employee_data(id):
             employee['profile_picture'] = profile_picture
             # print (type(employee['profile_picture']))
             # print(employee)
+
+        
         return make_response(jsonify(employee), 200)
         # return make_response({"message":employee}, 200)
    
@@ -137,6 +146,10 @@ for emp in emp:
     print("\n")
 
 """
+
+def setTotalEmployees():
+    count = employeeData.count_documents({'status':'Active'})
+    db.StaticData.update_one({},{"$set":{'totalActiveEmployees':count}})
 
 #to update the data in the database
 def edit_employee_data(data_obj, id):

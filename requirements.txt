@@ -27,3 +27,4 @@ xlsxwriter
 Werkzeug
 flask_mail
 apscheduler
+msal
