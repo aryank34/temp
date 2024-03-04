@@ -70,9 +70,10 @@ class EmployeeSheetObject:
     def __init__(self, projectID: ObjectId, taskID: ObjectId, workDay: dict[str, WorkDay], description: str = str(""), billable: bool = False):
         self.projectID = projectID
         self.taskID = taskID
-        self.workDay = workDay
+        self.workDay = {day: WorkDay(**workDay) if isinstance(workDay, dict) else workDay for day, workDay in workDay.items()}
         self.description = description
         self.billable = billable
+
     def to_dict(self):
         return {
             "projectID": self.projectID,
@@ -110,13 +111,14 @@ class EmployeeSheet:
         self.endDate = endDate
         self.employeeSheetObject = employeeSheetObject
         self.status = status
+
     def to_dict(self):
         return {
             "employeeID": self.employeeID,
             "managerID": self.managerID,
             "startDate": self.startDate,
             "endDate": self.endDate,
-            "employeeSheetObject": [vars(employeeSheetInstance) for employeeSheetInstance in self.employeeSheetObject],
+            "employeeSheetObject": [obj.to_dict() for obj in self.employeeSheetObject],
             "status": self.status
         }
 

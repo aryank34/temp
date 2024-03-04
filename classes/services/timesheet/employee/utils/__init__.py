@@ -694,25 +694,72 @@ def employee_timesheet_operation(employee_uuid, timesheet):
                     
                     new_employeeSheetObject = EmployeeSheetObject(projectID=ObjectId(employeesheetobject['projectID']), taskID=ObjectId(employeesheetobject['taskID']), billable=employeesheetobject['billable'], workDay=workDay, description=employeesheetobject['description'])
                     employeSheetObjectList.append(new_employeeSheetObject)
-                # create new timesheet
+                # # return the total work hour of individual workDay, if work is true for every employeeSheetObject
+                # total_day_hours = {
+                #     "mon": 0,
+                #     "tue": 0,
+                #     "wed": 0,
+                #     "thu": 0,
+                #     "fri": 0,
+                #     "sat": 0,
+                #     "sun": 0
+                # }
+                # for employeesheetobject in employeSheetObjectList:
+                #     for day in total_day_hours:
+                #         if employeesheetobject.workDay[day].work:  # Only add hours if work is True
+                #             total_day_hours[day] += employeesheetobject.workDay[day].hour
+                #         else:  # If work is False, it's a holiday, so set hours to 8
+                #             total_day_hours[day] = 'holiday'
+                # for day in total_day_hours:
+                #     if total_day_hours[day] not in [8,'holiday']:  # Check all days, including holidays
+                #         return make_response(jsonify({"error": "Total hours for a day must be 8"}), 400)
+                # # return the work hours
+                # return make_response(jsonify({"message": total_day_hours}), 200)
+                    
+                
+                    
+                # create new timesheet 
                 # get manager of employee
                 managerID = client.WorkBaseDB.Members.find_one({"_id": ObjectId(employee_id)},{"managerID": "$reportsTo"})['managerID']
                 if managerID is None:
                     return make_response(jsonify({"error": "Manager not found"}), 400)
                 if 'action' in timesheet:
                     if timesheet['action'].lower() == "draft": 
+                        # employeSheetObjectList = [obj.to_dict() for obj in employeSheetObjectList]
                         new_timesheet = EmployeeSheet(employeeID=ObjectId(employee_id), managerID=ObjectId(managerID), employeeSheetObject=employeSheetObjectList, startDate=current_monday, endDate=next_monday, status='Draft')
                         new_timesheet = client.TimesheetDB.EmployeeSheets.insert_one(new_timesheet.to_dict())
                         if new_timesheet is None:
                             return make_response(jsonify({"error": "Failed to create Timesheet"}), 500)
                         # Return the result message
-                        return make_response(jsonify({"message": "Timesheet added as Draft"}), 200)           
+                        return make_response(jsonify({"message": "Timesheet added as Draft"}), 200)       
                     elif timesheet['action'].lower() == "submit":
+                        # check if the total hours of a particular day is equal to 8 accross all the employeeSheetObjects for similar day
+                        # return the total work hour of individual workDay, if work is true for every employeeSheetObject
+                        total_day_hours = {
+                            "mon": 0,
+                            "tue": 0,
+                            "wed": 0,
+                            "thu": 0,
+                            "fri": 0,
+                            "sat": 0,
+                            "sun": 0
+                        }
+                        for employeesheetobject in employeSheetObjectList:
+                            for day in total_day_hours:
+                                if employeesheetobject.workDay[day].work:  # Only add hours if work is True
+                                    total_day_hours[day] += employeesheetobject.workDay[day].hour
+                                else:  # If work is False, it's a holiday, so set hours to 8
+                                    total_day_hours[day] = 'holiday'
+                        for day in total_day_hours:
+                            if total_day_hours[day] not in [8,'holiday']:  # Check all days, including holidays
+                                return make_response(jsonify({"error": "Total hours for a day must be 8"}), 400)
+
                         # check if same week has already submitted or reviewing timesheets
                         submitted_timesheets = client.TimesheetDB.EmployeeSheets.find_one({"employeeID": ObjectId(employee_id), "startDate": current_monday, "endDate": next_monday, "status": {"$in": ["Reviewing"]}})
                         if submitted_timesheets is not None:
                             return make_response(jsonify({"error": "Timesheet for this week already exists"}), 400)
                         # create new timesheet                        
+                        # employeSheetObjectList = [obj.to_dict() for obj in employeSheetObjectList]
                         new_timesheet = EmployeeSheet(employeeID=ObjectId(employee_id), managerID=ObjectId(managerID), employeeSheetObject=employeSheetObjectList, startDate=current_monday, endDate=next_monday, status='Reviewing')
                         new_timesheet = client.TimesheetDB.EmployeeSheets.insert_one(new_timesheet.to_dict())
                         if new_timesheet is None:
