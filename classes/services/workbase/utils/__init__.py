@@ -238,7 +238,7 @@ def fetch_organization_members(superAdmin_uuid):
         if isinstance(client, MongoClient):
             # build a pipeline to retrieve all members from database
             members_pipeline = [
-                {"$project": {"_id": 1, "name": 1, "role": 1}},
+                {"$project": {"_id": 1, "name": 1}},
                 ]
 
             # Get all the members from the collection
@@ -248,8 +248,8 @@ def fetch_organization_members(superAdmin_uuid):
                 # Return the members list
                 return make_response(jsonify({"error": "No members found"}), 404)
             
-            # sort members according to role
-            members.sort(key=lambda x: x['role'])
+            # sort members according to name
+            members.sort(key=lambda x: x['name'])
 
             # Convert the manager_sheets cursor object to a JSON object
             members_json = json.dumps(members, default=str)

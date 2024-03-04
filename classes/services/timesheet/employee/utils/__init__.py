@@ -656,6 +656,21 @@ def employee_timesheet_operation(employee_uuid, timesheet):
             employee_id= verify.json['_id']
 
             if timesheet is not None:
+                # check if employeeSheet is valid
+                # check if the timesheet exists
+                delete_it = False
+                if 'employeeSheetID' in timesheet:
+                    verify = verify_attribute(collection=client.TimesheetDB.EmployeeSheets, key="_id",attr_value=ObjectId(timesheet['employeeSheetID']))
+                    if not verify.status_code == 200:
+                        # If the connection fails, return the error response
+                        return make_response(jsonify({"error": "Failed to verify timesheet"}), 500)
+                    # return make_response(jsonify({"message": "working"}), 200)
+                    # check if the timesheet belongs to the employee
+                    current_sheet = client.TimesheetDB.EmployeeSheets.find_one({"_id": ObjectId(timesheet['employeeSheetID']), "employeeID": ObjectId(employee_id)})
+                    if current_sheet is None:
+                        return make_response(jsonify({"error": "Timesheet does not exist or does not belong to the employee"}), 400)
+                    delete_it = True
+                
                 employeSheetObjectList = []
                 # store sheet to draft
                 current_monday, next_monday = get_current_week()
@@ -739,10 +754,17 @@ def employee_timesheet_operation(employee_uuid, timesheet):
                                 }}}
                             )
                         
-                        
+                            if document is None:
+                                return make_response(jsonify({"error": "Failed to update TimesheetRecords"}), 500)
+
                         else:
                             client.TimesheetDB.TimesheetRecords.insert_one({"managerID": managerID, "managerSheetsInstances": [{"managerSheetsObjects": newManagerSheetReview.inserted_id, "lastUpdateDate": datetime.now(), "version": 0}]})
                         # Return the result message
+                        if delete_it:# delete the timesheet
+                            verify = client.TimesheetDB.EmployeeSheets.delete_one({"_id": ObjectId(timesheet['employeeSheetID'])})
+                            if verify is None:
+                                return make_response(jsonify({"error": "Failed to remove current timesheet"}), 500)
+
                         return make_response(jsonify({"message": "Timesheet Submitted for Review"}), 200)
                     else:
                         return make_response(jsonify({"error": "Illegal Action: Select Draft/Submit only"}), 400)
