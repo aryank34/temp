@@ -538,6 +538,323 @@ def get_weekend_timesheets():
         # If an error occurs, log an error message
         logging.error("[ERROR] --- Error getting weekend timesheets: ",type(e).__name__, ":", str(e))
 
+# def friday_submitted_timesheets_check():
+#     try:
+#         logging.info("[INIT] --- Timesheets Submission Checking Protocol Initiated...")
+#         client = dbConnectCheck()  # Check the database connection
+#         if isinstance(client, MongoClient):  # If the connection is successful
+#             # Get the current date
+#             now = datetime.now()
+#             # Find the start and end of the current week
+#             start_of_week = now - timedelta(days=now.weekday())
+#             start_of_week = start_of_week.replace(hour=0, minute=0, second=0, microsecond=0)  # Set time to 12AM
+#             end_of_week = start_of_week + timedelta(days=6, hours=23, minutes=59, seconds=59)  # Set time to 11:59PM
+#             # Query the EmployeeSheets collection for all sheets with a startDate or endDate within the current week and a status of submitted or reviewing
+#             employee_sheets_cursor = client.TimesheetDB.EmployeeSheets.find({
+#                 '$and': [
+#                     {'startDate': {'$gte': start_of_week, '$lte': end_of_week}},  # startDate is within the current week
+#                     {'endDate': {'$gte': start_of_week, '$lte': end_of_week}},  # endDate is within the current week
+#                     {'status': {'$in': ['Submitted', 'Reviewing']}}  # status is submitted or reviewing
+#                 ]
+#             })
+#             # Convert the results to a list
+#             employee_sheets = list(employee_sheets_cursor)
+#             # Get the list of employees with a submitted or reviewing sheet status
+#             employees_with_sheets = [sheet['employeeID'] for sheet in employee_sheets]
+
+#             # Get the list of employees from the Members collection who are not included in the list of the reviewing and submitted timesheet status
+#             members_cursor = client.WorkBaseDB.Members.find({
+#                 '_id': {'$nin': employees_with_sheets},
+#                 'name': {'$ne': 'ALL EMPLOYEES'}
+#             })
+#             # Convert the results to a list
+#             members = list(members_cursor)
+#             # Iterate over the employees who are not included in the list of the reviewing and submitted timesheet status
+#             for member in members:
+#                 # Get the employee's ID and manager's ID
+#                 employee_id = member['_id']
+#                 if 'reportsTo' in member:
+#                     manager_id = member['reportsTo']
+#                 else:
+#                     manager_id = None
+
+#                 # Create a new document with the employee's ID and the initial manager's ID
+#                 document = {
+#                     'employeeID': employee_id,
+#                     'managerID': [manager_id]
+#                 }
+
+#                 # Insert the new document into the EscalationState collection
+#                 document = client.TimesheetDB.EscalationState.insert_one(document)
+#                 if (document):
+#                     logging.info("[OK] --- Escalation State Created"+" : EscalationStateID : "+ str(document.inserted_id), " : EmployeeID : "+ str(employee_id))
+                
+#             logging.info("[OK] --- Timesheets Submission Checking Protocol Completed")  # Log a success message
+        
+#         else:
+#             # If the connection fails, log an error message
+#             logging.error("[ERROR] --- Failed to connect to the MongoDB server while checking submitted timesheets")
+    
+#     except Exception as e:
+#         # If an error occurs, log an error message
+#         logging.error("[ERROR] --- Error checking submitted timesheets: ",type(e).__name__, ":", str(e))
+
+# Import ThreadPoolExecutor from concurrent.futures for creating a pool of worker threads
+from concurrent.futures import ThreadPoolExecutor
+from datetime import datetime, timedelta
+from pymongo import MongoClient
+from pymongo.server_api import ServerApi
+from bson import ObjectId
+
+from concurrent.futures import ThreadPoolExecutor
+
+def publish_timesheet_escalation_notification_for_employee(managerID, employeeID, template, week_start_str, week_end_str):
+    try:
+        logging.info("[INIT] --- Performing Notification Publication for Employee: %s and Manager: %s" % (employeeID, managerID))
+        client = dbConnectCheck()  # Check the database connection
+        if isinstance(client, MongoClient):  # If the connection is successful
+            # Replace the placeholders in the template with the actual values
+            manager_name = client.WorkBaseDB.Members.find_one({'_id': managerID})['name']
+            employee_name = client.WorkBaseDB.Members.find_one({'_id': employeeID})['name']
+            content = template['Contents']['message'].format(
+                recipient_name=manager_name,  # Replace this with the actual manager name
+                subject_name=employee_name,
+                week_start=week_start_str,
+                week_end=week_end_str
+            )
+            # Create the notification document
+            notification = {
+                'employeeID': employeeID,
+                'title': template['template_name'],
+                'date': datetime.now(),
+                'content': content,
+                'level': template['Level']
+            }
+            # Insert the notification document into the Notifications collection
+            updated = client.NotificationDB.NotificationEvents.insert_one(notification)
+            if updated:
+                logging.info("[OK] - Notification created for employee ID: %s and manager ID: %s" % (employeeID, managerID))
+                return True
+            else:
+                logging.error("[ERROR] - Failed to create notification for employee ID: %s and manager ID: %s" % (employeeID, managerID))
+                return None
+        else:
+            # If the connection fails, log an error message
+            logging.error("[ERROR] --- Failed to connect to the MongoDB server while creating notifications")
+            return None
+    except Exception as e:
+        # If an error occurs, log an error message
+        logging.error("[ERROR] --- Error creating notifications: ",type(e).__name__, ":", str(e), " : EmployeeID : "+ str(employeeID), " : ManagerID : "+ str(managerID))
+        return None
+
+def create_timesheet_escalation_notification_for_member_thread(member, template, week_start_str, week_end_str):
+    try:
+        logging.info("[INIT] --- Timesheet Escalation Notification Publication Process Initiated...")
+        client = dbConnectCheck()  # Check the database connection
+        if isinstance(client, MongoClient):  # If the connection is successful
+            employeeID = member['employeeID']
+            logging.info("[INFO] - Creating notifications for employee ID: %s" %(employeeID))
+            # Get the employee's name and managers
+            managers = member['managerID']
+            if len(managers) == 0:
+                logging.info("[INFO] - No managers found for employee ID: %s" %(employeeID))
+                managers = []
+            manager_count = len(managers)
+            logging.info(f"[INFO] - Number of managers: {manager_count}")
+            logging.info("Initiating Timesheet Escalation Notification Publishing Process for Employee: %s" %(member['employeeID']))  # Log the start of the process
+            success_count = 0  # Variable to keep track of successful thread executions
+            # create notification for the managers
+            with ThreadPoolExecutor() as executor:
+                results = executor.map(publish_timesheet_escalation_notification_for_employee,
+                            [(managerID) for managerID in managers], 
+                            [employeeID]*len(managers), 
+                            [template]*len(managers), 
+                            [week_start_str]*len(managers), 
+                            [week_end_str]*len(managers))
+            # Return the number of successful thread executions
+            for result in results:
+                if result is not None:
+                    success_count += 1
+            if success_count == manager_count:
+                logging.info(f"[OK] --- All jobs succeeded ({success_count} out of {manager_count})")  # Log a success message
+            else:
+                logging.info(f"[INFO] --- {success_count} out of {manager_count} jobs succeeded")  # Log the number of successful jobs
+            # create notification for the employee
+            publish_timesheet_escalation_notification_for_employee(employeeID, employeeID, template, week_start_str, week_end_str)
+            logging.info("[END] - Finished creating notifications for employee ID: %s" %(employeeID))
+            return True
+
+        else:
+            # If the connection fails, log an error message
+            logging.error("[ERROR] --- Failed to connect to the MongoDB server while creating notifications")
+            return None
+    except Exception as e:
+        # If an error occurs, log an error message
+        logging.error("[ERROR] --- Error creating notifications: ",type(e).__name__, ":", str(e), " : EmployeeID : "+ str(member['employeeID']))
+        return None
+
+def create_timesheet_escalation_notifications():
+    try:
+        logging.info("[INIT] --- Timesheets Submission Checking Protocol Initiated...")
+        client = dbConnectCheck()  # Check the database connection
+        if isinstance(client, MongoClient):  # If the connection is successful
+            logging.info("[INFO] - Starting to create notifications")
+
+            # Get the current week's start and end dates
+            week_start = datetime.now() - timedelta(days=datetime.now().weekday())
+            week_end = week_start + timedelta(days=6)
+
+            # Format the dates as strings
+            week_start_str = week_start.strftime('%d %B, %Y')
+            week_end_str = week_end.strftime('%d %B, %Y')
+
+            # Get the template from the NotificationTemplates collection
+            template = client.NotificationDB.NotificationTemplates.find_one({'template_code': '505'})
+            if template is None:
+                logging.error("[ERROR] - Template not found")
+                return
+            # Get all the members from the EscalationState collection
+            members = list(client.TimesheetDB.EscalationState.find())
+            if len(members) == 0:
+                logging.error("[ERROR] - Members not found")
+                return
+            # number of members
+            members_count = len(members)
+            logging.info(f"[INFO] - Number of members: {members_count}")
+            logging.info("Initiating Notification Publishing Process...")  # Log the start of the process
+            success_count = 0  # Variable to keep track of successful thread executions
+            # Use a ThreadPoolExecutor to insert documents concurrently
+            # Use a ThreadPoolExecutor to create notifications concurrently
+            with ThreadPoolExecutor() as executor:
+                results = executor.map(create_timesheet_escalation_notification_for_member_thread, 
+                                    [member for member in members],
+                                    [template]*len(members), 
+                                    [week_start_str]*len(members), 
+                                    [week_end_str]*len(members))
+            
+            # Return the number of successful thread executions
+            for result in results:
+                if result is not None:
+                    success_count += 1
+            if success_count == members_count:
+                logging.info(f"[OK] --- All jobs succeeded ({success_count} out of {members_count})")  # Log a success message
+            else:
+                logging.info(f"[INFO] --- {success_count} out of {members_count} jobs succeeded")  # Log the number of successful jobs
+
+            logging.info("[END] - Finished creating notifications")
+
+        else:
+            # If the connection fails, log an error message
+            logging.error("[ERROR] --- Failed to connect to the MongoDB server while creating notifications")
+    except Exception as e:
+        # If an error occurs, log an error message
+        logging.error("[ERROR] --- Error creating notifications: ",type(e).__name__, ":", str(e))
+
+def escalation_updation_thread(member):
+    try:
+        logging.info("[INIT] --- Performing Escalation Protocol upon Employee: " + str(member['_id']))
+        client = dbConnectCheck()  # Check the database connection
+        if isinstance(client, MongoClient):  # If the connection is successful
+            # Get the employee's ID and manager's ID
+            employee_id = member['_id']
+            # Check if the member already exists in the EscalationState collection
+            existing_document = client.TimesheetDB.EscalationState.find_one({'employeeID': employee_id})
+
+            if existing_document is None:
+                # If the member does not exist, insert a new document
+                # If the member does not exist, insert a new document
+                manager_id = member.get('reportsTo', None)
+                document = {
+                    'employeeID': employee_id,
+                    'managerID': [manager_id] if ((manager_id is not None) and manager_id != employee_id) else []
+                }
+                document = client.TimesheetDB.EscalationState.insert_one(document)
+                logging.info("[OK] --- Escalation State Created" + " : EscalationStateID : " + str(document.inserted_id), " : EmployeeID : " + str(employee_id))
+            else:
+                # If the member does exist, find the reportsTo of the topmost manager and add it to the managerID list
+                if existing_document['managerID']:
+                    topmost_manager = existing_document['managerID'][-1]
+                else:
+                    topmost_manager = None
+                if topmost_manager is None:
+                    topmost_manager_reports_to = None
+                else:
+                    topmost_manager_document = client.WorkBaseDB.Members.find_one({'_id': topmost_manager})
+                    topmost_manager_reports_to = topmost_manager_document.get('reportsTo', None)
+
+                # If topmost_manager_reports_to is not None and not equal to topmost_manager, add it to the managerID list
+                if topmost_manager_reports_to is not None and topmost_manager_reports_to != topmost_manager:
+                    client.TimesheetDB.EscalationState.update_one({'employeeID': employee_id}, {'$push': {'managerID': topmost_manager_reports_to}})
+                    logging.info("[OK] --- Escalation State Updated"+" : EmployeeID : "+ str(employee_id))
+            return True
+        else:
+            # If the connection fails, log an error message
+            logging.error("[ERROR] --- Failed to connect to the MongoDB server while checking submitted timesheets")
+            return None
+    except Exception as e:
+        # If an error occurs, log an error message
+        logging.error("[ERROR] --- Error checking submitted timesheets: ", type(e).__name__, ":", str(e), " : EmployeeID : "+ str(member['_id']))
+        return None
+
+def submitted_timesheets_check():
+    try:
+        logging.info("[INIT] --- Timesheets Submission Checking Protocol Initiated...")
+        client = dbConnectCheck()  # Check the database connection
+        if isinstance(client, MongoClient):  # If the connection is successful
+            # Get the current date
+            now = datetime.now()
+            # Find the start and end of the current week
+            start_of_week = now - timedelta(days=now.weekday())
+            start_of_week = start_of_week.replace(hour=0, minute=0, second=0, microsecond=0)  # Set time to 12AM
+            end_of_week = start_of_week + timedelta(days=6, hours=23, minutes=59, seconds=59)  # Set time to 11:59PM
+            # Query the EmployeeSheets collection for all sheets with a startDate or endDate within the current week and a status of submitted or reviewing
+            employee_sheets_cursor = client.TimesheetDB.EmployeeSheets.find({
+                '$and': [
+                    {'startDate': {'$gte': start_of_week, '$lte': end_of_week}},  # startDate is within the current week
+                    {'endDate': {'$gte': start_of_week, '$lte': end_of_week}},  # endDate is within the current week
+                    {'status': {'$in': ['Submitted', 'Reviewing']}}  # status is submitted or reviewing
+                ]
+            })
+            # Convert the results to a list
+            employee_sheets = list(employee_sheets_cursor)
+            # Get the list of employees with a submitted or reviewing sheet status
+            employees_with_sheets = [sheet['employeeID'] for sheet in employee_sheets]
+
+            # Get the list of employees from the Members collection who are not included in the list of the reviewing and submitted timesheet status
+            members_cursor = client.WorkBaseDB.Members.find({
+                '_id': {'$nin': employees_with_sheets},
+                'name': {'$ne': 'ALL EMPLOYEES'}
+            })
+            # Convert the results to a list
+            members = list(members_cursor)
+            # Get the number of timesheets collected for submission
+            members_count = len(members) # Get the number of timesheets collected
+            logging.info(f"Number of employees hasn't submitted timesheets: {members_count}")  # Log the number of timesheets collected for submission
+            logging.info("Initiating Escalation Protocol...")  # Log the start of the process
+            success_count = 0  # Variable to keep track of successful thread executions
+            # Use a ThreadPoolExecutor to insert documents concurrently
+            with ThreadPoolExecutor() as executor:
+                results = executor.map(escalation_updation_thread, [(member) for member in members])
+
+            # Return the number of successful thread executions
+            for result in results:
+                if result is not None:
+                    success_count += 1
+            if success_count == members_count:
+                logging.info(f"[OK] --- All jobs succeeded ({success_count} out of {members_count})")  # Log a success message
+            else:
+                logging.info(f"[INFO] --- {success_count} out of {members_count} jobs succeeded")  # Log the number of successful jobs
+
+            # Create notifications for the employees and their managers
+            create_timesheet_escalation_notifications()
+        else:
+            logging.error("[ERROR] --- Failed to connect to the MongoDB server while checking submitted timesheets")
+        logging.info("[END] --- Timesheets Submission Checking Protocol Completed")  # Log the end of the process
+
+    except Exception as e:
+        logging.error("[ERROR] --- Error checking submitted timesheets: ", type(e).__name__, ":", str(e))
+
+
 # Define a class for the scheduler
 class Scheduler:
     def __init__(self):
@@ -556,10 +873,14 @@ class Scheduler:
             # scheduler.add_job(create_employee_sheets, 'cron', day_of_week='sun', hour=23, minute="0/15", timezone='America/New_York', args=[])
             # # The distribute_active_timesheets job runs every 15 minutes every day at 15:00 IST
             # scheduler.add_job(distribute_active_timesheets, 'cron', day_of_week='*', hour=15, minute="0/15", timezone='Asia/Kolkata', args=[])
-            # The submit_timesheet_for_review job runs every 15 minutes on Fridays at 20:00 UTC
-            scheduler.add_job(submit_timesheet_for_review, 'cron', day_of_week='fri', hour=20, minute="0/15", timezone='America/New_York', args=[False])
-            # The submit_timesheet_for_review job runs every 15 minutes on Sundays at 20:00 UTC
-            scheduler.add_job(submit_timesheet_for_review, 'cron', day_of_week='sun', hour=20, minute="0/15", timezone='America/New_York', args=[True])
+            # # The submit_timesheet_for_review job runs every 15 minutes on Fridays at 20:00 UTC
+            # scheduler.add_job(submit_timesheet_for_review, 'cron', day_of_week='fri', hour=20, minute="0/15", timezone='America/New_York', args=[False])
+            # # The submit_timesheet_for_review job runs every 15 minutes on Sundays at 20:00 UTC
+            # scheduler.add_job(submit_timesheet_for_review, 'cron', day_of_week='sun', hour=20, minute="0/15", timezone='America/New_York', args=[True])
+            # Timesheet Submission Check Protocol every friday at 20:00 UTC
+            scheduler.add_job(submitted_timesheets_check, 'cron', day_of_week='fri', hour=23, minute=59, second=59, timezone='America/New_York', args=[])
+            # Escalated Submission Check Protocol every sunday at 23:00 UTC
+            scheduler.add_job(submitted_timesheets_check, 'cron', day_of_week='sun', hour=23, minute=59, second=59, timezone='America/New_York', args=[])
             scheduler.start()  # Start the scheduler
             logging.info("[OK] --- Scheduler started successfully.")
             print("Scheduler started successfully.")

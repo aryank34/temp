@@ -753,6 +753,11 @@ def employee_timesheet_operation(employee_uuid, timesheet):
                         for day in total_day_hours:
                             if total_day_hours[day] not in [8,'holiday']:  # Check all days, including holidays
                                 return make_response(jsonify({"error": "Total hours for a day must be 8"}), 400)
+                            
+                        # check if description field must have text
+                        for employeesheetobject in employeSheetObjectList:
+                            if employeesheetobject.description is None or employeesheetobject.description == "":
+                                return make_response(jsonify({"error": "Description field must have text"}), 400)
 
                         # check if same week has already submitted or reviewing timesheets
                         submitted_timesheets = client.TimesheetDB.EmployeeSheets.find_one({"employeeID": ObjectId(employee_id), "startDate": current_monday, "endDate": next_monday, "status": {"$in": ["Reviewing"]}})
