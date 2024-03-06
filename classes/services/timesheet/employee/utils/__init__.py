@@ -1107,6 +1107,14 @@ def get_employee_assignments(employee_id):
             # Convert the employee_sheets cursor object to a JSON object
             # sort the items inside project based on the name
             work_details[0]['Projects'] = sorted(work_details[0]['Projects'], key=lambda x: x['name'])
+            work_schedule = get_work_schedule(employee_id)
+            if work_schedule.status_code != 200:
+                return work_schedule
+            work_details[0]['work_schedule'] = work_schedule.json['work_schedule']
+            available_leave_hours = client.LeavesDB.LeaveBank.find_one({"employeeID": ObjectId(employee_id)})['available_hours']
+            if available_leave_hours is None:
+                available_leave_hours = 0
+            work_details[0]['available_leave_hours'] = available_leave_hours
             tasks_json = json.dumps(work_details[0], default=str)
             tasks_data = json.loads(tasks_json)
             # Return the JSON response
@@ -1116,6 +1124,122 @@ def get_employee_assignments(employee_id):
             return make_response(jsonify({"error": "Failed to connect to the MongoDB server"}), 500)
     except Exception as e:
         # If an error occurs, return the error response
+        return make_response(jsonify({"error": str(e)}), 500)
+
+def get_work_schedule(employeeID):
+    try:
+        # Connect to MongoDB
+        client = dbConnectCheck()
+        if isinstance(client, MongoClient):  # If the connection is successful
+
+            # Get the current date
+            now = datetime.now()
+
+            # Find the start and end of the current week
+            start_of_week = now - timedelta(days=now.weekday())
+            start_of_week = start_of_week.replace(hour=0, minute=0, second=0, microsecond=0)  # Set time to 12AM
+            end_of_week = start_of_week + timedelta(days=6, hours=23, minutes=59, seconds=59)  # Set time to 11:59PM
+            employeeID = ObjectId(employeeID)
+            employeeDataID = client.WorkBaseDB.Members.find_one({"_id": employeeID}, {"employeeDataID": 1})["employeeDataID"]
+            employeeData = client.sample_employee.employeeData.find_one({"_id": employeeDataID})
+            employee_country = employeeData["Country"]
+            employee_zone = employeeData["Zone"]
+            # If employee_zone is not a list, convert it to a list
+            if not isinstance(employee_zone, list):
+                employee_zone = [employee_zone]
+            pipeline = [
+                {"$match": {"date": {"$lte": end_of_week}}},
+                {"$match": {
+                    "$or": [
+                        {"location.country": "INTERNATIONAL"},
+                        {"$and": [
+                            {"location.country": employee_country},
+                            {"location.Zone": {"$in": employee_zone}}
+                        ]}
+                    ]
+                }},
+                {"$project": {"_id": 0, "date": 1, "duration": 1, "name": 1}}
+            ]
+            holidays_cursor = client.LeavesDB.Holidays.aggregate(pipeline)
+            holidays = list(holidays_cursor)
+            
+            # Find the start and end of the current week
+            start_of_week = now - timedelta(days=now.weekday())
+            start_of_week = start_of_week.replace(hour=0, minute=0, second=0, microsecond=0)  # Set time to 12AM
+            end_of_week = start_of_week + timedelta(days=6, hours=23, minutes=59, seconds=59)  # Set time to 11:59PM
+            pipeline = [
+                {"$match": {"employeeID": employeeID}},
+                {"$unwind": "$upcoming_approved_leaves"},
+                {"$match": {"upcoming_approved_leaves.date": {"$lte": end_of_week}}},
+                {"$project": {"_id": 0, "date": "$upcoming_approved_leaves.date", "duration": "$upcoming_approved_leaves.duration", "name": "$upcoming_approved_leaves.comment"}}
+            ]
+
+            leaves_cursor = client.LeavesDB.LeaveBank.aggregate(pipeline)
+            # Convert the results to a list
+            upcoming_leaves = list(leaves_cursor)
+
+            if len(holidays) == 0:
+                holidays = upcoming_leaves
+            elif len(upcoming_leaves) != 0:
+                # merge the lists
+                holidays = holidays + upcoming_leaves
+            # sort the list based on date
+            holidays = sorted(holidays, key=lambda x: x['date'])
+            # Filter the holidays to only include those that continue into the current week
+            holidays = [holiday for holiday in holidays if holiday['date'] + timedelta(days=holiday['duration']) >= start_of_week]
+            # return holidays
+
+            weekend = [{
+                "date": start_of_week + timedelta(days=5),
+                "duration": 2,
+                "name": "Weekend"
+            }]
+            holidays = holidays + weekend
+
+
+            # Initialize a dictionary to store the work schedule for the current week
+            work_schedule = {
+                "mon": {"work": "true", "comment": ""},
+                "tue": {"work": "true", "comment": ""},
+                "wed": {"work": "true", "comment": ""},
+                "thu": {"work": "true", "comment": ""},
+                "fri": {"work": "true", "comment": ""},
+                "sat": {"work": "true", "comment": ""},
+                "sun": {"work": "true", "comment": ""},
+            }
+
+            # Define a list of weekday names to index the work_schedule dictionary
+            weekday_names = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]
+
+            if len(holidays) == 0:
+                return make_response(jsonify({"work_schedule": work_schedule}), 200)
+            # Iterate over the holidays
+            for holiday in holidays:
+                # Get the date of the holiday
+                start_date = holiday['date']
+
+                # Iterate over each day of the holiday
+                for i in range(holiday['duration']):
+                    date = start_date + timedelta(days=i)
+
+                    # Check if the day falls within the current week
+                    if start_of_week <= date <= end_of_week:
+                        # Get the weekday name
+                        weekday_name = weekday_names[date.weekday()]
+
+                        # If the day already has a holiday, append the new holiday name to the comment
+                        if work_schedule[weekday_name]["work"] == "false":
+                            work_schedule[weekday_name]["comment"] += ", " + holiday['name']
+                        else:
+                            # Otherwise, update the work_schedule dictionary
+                            work_schedule[weekday_name] = {"work": "false", "comment": holiday['name']}
+            return make_response(jsonify({"work_schedule": work_schedule}), 200)
+        else:
+            # return make_response(jsonify({"message": "Working"}), 200)
+            return make_response(jsonify({"error": "Failed to connect to the MongoDB server"}), 500)
+            
+    except Exception as e:
+        # If an error occurs, print an error message
         return make_response(jsonify({"error": str(e)}), 500)
 
 def fetch_employee_project_tasks(employee_uuid):
