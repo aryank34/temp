@@ -694,30 +694,7 @@ def employee_timesheet_operation(employee_uuid, timesheet):
                     
                     new_employeeSheetObject = EmployeeSheetObject(projectID=ObjectId(employeesheetobject['projectID']), taskID=ObjectId(employeesheetobject['taskID']), billable=employeesheetobject['billable'], workDay=workDay, description=employeesheetobject['description'])
                     employeSheetObjectList.append(new_employeeSheetObject)
-                # # return the total work hour of individual workDay, if work is true for every employeeSheetObject
-                # total_day_hours = {
-                #     "mon": 0,
-                #     "tue": 0,
-                #     "wed": 0,
-                #     "thu": 0,
-                #     "fri": 0,
-                #     "sat": 0,
-                #     "sun": 0
-                # }
-                # for employeesheetobject in employeSheetObjectList:
-                #     for day in total_day_hours:
-                #         if employeesheetobject.workDay[day].work:  # Only add hours if work is True
-                #             total_day_hours[day] += employeesheetobject.workDay[day].hour
-                #         else:  # If work is False, it's a holiday, so set hours to 8
-                #             total_day_hours[day] = 'holiday'
-                # for day in total_day_hours:
-                #     if total_day_hours[day] not in [8,'holiday']:  # Check all days, including holidays
-                #         return make_response(jsonify({"error": "Total hours for a day must be 8"}), 400)
-                # # return the work hours
-                # return make_response(jsonify({"message": total_day_hours}), 200)
-                    
-                
-                    
+    
                 # create new timesheet 
                 # get manager of employee
                 managerID = client.WorkBaseDB.Members.find_one({"_id": ObjectId(employee_id)},{"managerID": "$reportsTo"})['managerID']
@@ -744,15 +721,28 @@ def employee_timesheet_operation(employee_uuid, timesheet):
                             "sat": 0,
                             "sun": 0
                         }
+                        available_leave_hours = client.LeavesDB.LeaveBank.find_one({"employeeID": ObjectId(employee_id)}, {"available_hours": 1})
+                        if available_leave_hours is None:
+                            return make_response(jsonify({"error": "Failed to get available leave hours"}), 500)
+                        available_leave_hours = available_leave_hours['available_hours']
                         for employeesheetobject in employeSheetObjectList:
                             for day in total_day_hours:
                                 if employeesheetobject.workDay[day].work:  # Only add hours if work is True
                                     total_day_hours[day] += employeesheetobject.workDay[day].hour
                                 else:  # If work is False, it's a holiday, so set hours to 8
                                     total_day_hours[day] = 'holiday'
+                        total_pto_hours = 0
                         for day in total_day_hours:
-                            if total_day_hours[day] not in [8,'holiday']:  # Check all days, including holidays
-                                return make_response(jsonify({"error": "Total hours for a day must be 8"}), 400)
+                            # calculate the date of the day as YYYY-MM-DD in CST
+                            date = (current_monday + timedelta(days=list(total_day_hours.keys()).index(day))).strftime("%Y-%m-%d")
+                            if total_day_hours[day] != 8 and total_day_hours[day] != 'holiday':
+                                # calculate the hours missing
+                                hours_missing = 8 - total_day_hours[day]
+                                total_pto_hours += hours_missing
+
+                        # check if the employee has enough leave hours to cover the missing hours
+                        if total_pto_hours > available_leave_hours:
+                            return make_response(jsonify({"error": "Insufficient leave hours to cover missing work hours"}), 400)
                             
                         # check if description field must have text
                         for employeesheetobject in employeSheetObjectList:
@@ -1111,6 +1101,7 @@ def get_employee_assignments(employee_id):
             if work_schedule.status_code != 200:
                 return work_schedule
             work_details[0]['work_schedule'] = work_schedule.json['work_schedule']
+            # return make_response(jsonify({"message": str(work_schedule.json['work_schedule'])}), 200)
             available_leave_hours = client.LeavesDB.LeaveBank.find_one({"employeeID": ObjectId(employee_id)})['available_hours']
             if available_leave_hours is None:
                 available_leave_hours = 0

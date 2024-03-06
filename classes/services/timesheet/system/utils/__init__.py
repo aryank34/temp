@@ -753,7 +753,8 @@ def submitted_timesheets_check():
             # Get the list of employees from the Members collection who are not included in the list of the reviewing and submitted timesheet status
             members_cursor = client.WorkBaseDB.Members.find({
                 '_id': {'$nin': employees_with_sheets},
-                'name': {'$ne': 'ALL EMPLOYEES'}
+                'name': {'$ne': 'ALL EMPLOYEES'},
+                'isEmployee': False
             })
             # Convert the results to a list
             members = list(members_cursor)

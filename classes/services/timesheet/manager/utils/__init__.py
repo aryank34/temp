@@ -891,6 +891,53 @@ def approve_timesheet(manager_uuid, timesheet):
             else:
                 return make_response(jsonify({"error": "timesheet data is required"}), 400)
             
+            # attempt to check for pto adjustment from missing hours of employee
+            # fetch the employeeSheet from the employeeSheetID
+            employeeSheet = client.TimesheetDB.EmployeeSheets.find_one({"_id": ObjectId(timesheet['employeeSheetID'])})
+            if employeeSheet is None:
+                return make_response(jsonify({"error": "Failed to get employeeSheet to update LeaveStatus"}), 500)
+            # fetch the employeeID from the employeeSheet
+            employeeID = employeeSheet['employeeID']
+            # fetch the startDate and endDate from the employeeSheet
+            startDate = employeeSheet['startDate']
+            # fetch available leave hours for employee
+            available_leave_hours = client.LeavesDB.LeaveBank.find_one({"employeeID": ObjectId(employeeID)},{"available_hours": 1})
+            if available_leave_hours is None:
+                return make_response(jsonify({"error": "Failed to get available leave hours"}), 500)
+            available_leave_hours = available_leave_hours['available_hours']
+            # fetch the workDay from the employeeSheet for every employeeSheetObject list item
+            employeeSheetObjectList = employeeSheet['employeeSheetObject']
+            total_day_hours = {
+                "mon": 0,
+                "tue": 0,
+                "wed": 0,
+                "thu": 0,
+                "fri": 0,
+                "sat": 0,
+                "sun": 0
+            }
+            for employeeSheetObject in employeeSheetObjectList:
+                for day in total_day_hours:
+                    if employeeSheetObject['workDay'][day]['work']:  # Only add hours if work is True
+                        total_day_hours[day] += employeeSheetObject['workDay'][day]['hour']
+                    else:  # If work is False, it's a holiday, so set hours to 8
+                        total_day_hours[day] = 'holiday'
+            pto_used = []
+            for day in total_day_hours:
+                # calculate the date of the day as YYYY-MM-DD in CST
+                date = (startDate + timedelta(days=list(total_day_hours.keys()).index(day))).strftime("%Y-%m-%d")
+                if total_day_hours[day] != 8 and total_day_hours[day] != 'holiday':
+                    # calculate the hours missing
+                    hours_missing = 8 - total_day_hours[day]
+                    # check if the employee has enough PTO hours to cover the missing hours
+                    if available_leave_hours >= hours_missing:
+                        # deduct the missing hours from the available leave hours
+                        available_leave_hours -= hours_missing
+                        # add the PTO hours to the PTO used list
+                        pto_used.append({ 'hour': hours_missing, 'comment': 'PTO', 'date': date})
+                    else:
+                        return make_response(jsonify({"error": f"Insufficient PTO hours to cover the missing hours on {day}"}), 400)
+
             # update the returnMessage field in the employeeSheetInstances field in EmployeeSheets Collection
             response = client.TimesheetDB.ManagerSheets.update_one({"_id": ObjectId(timesheet['managerSheetID'])},
                                                          {"$set": {"status": "Submitted"}})
@@ -903,7 +950,18 @@ def approve_timesheet(manager_uuid, timesheet):
             # if employeeSheet contains returnMessage field, remove the whole field totally
             response = client.TimesheetDB.EmployeeSheets.update_one({"_id": ObjectId(timesheet['employeeSheetID'])},
                                                          {"$unset": {"returnMessage": ""}})
-            # return make_response(jsonify(timesheet), 200)
+            
+            # if the employee has enough PTO hours to cover the missing hours, add the PTO hours to the employee's leave bank
+            if len(pto_used) > 0:
+                # add the PTO hours to the employee's LeaveBank at pto_records list field
+                pto_records = client.LeavesDB.LeaveBank.update_one({"employeeID": ObjectId(employeeID)}, {"$push": {"pto_records": {"$each": pto_used}}})
+                if pto_records is None:
+                    return make_response(jsonify({"error": "Failed to add PTO hours to LeaveBank"}), 500)
+            # update the available leave hours in the employee's LeaveBank
+            leave_hours = client.LeavesDB.LeaveBank.update_one({"employeeID": ObjectId(employeeID)}, {"$set": {"available_hours": available_leave_hours}})
+            if leave_hours is None:
+                return make_response(jsonify({"error": "Failed to update available leave hours"}), 500)
+            
             # Return the new timesheet as a JSON response
             return make_response(jsonify({"message": str("Timesheet Approved")}), 200)    
 
