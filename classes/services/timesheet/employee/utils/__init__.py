@@ -1102,9 +1102,11 @@ def get_employee_assignments(employee_id):
                 return work_schedule
             work_details[0]['work_schedule'] = work_schedule.json['work_schedule']
             # return make_response(jsonify({"message": str(work_schedule.json['work_schedule'])}), 200)
-            available_leave_hours = client.LeavesDB.LeaveBank.find_one({"employeeID": ObjectId(employee_id)})['available_hours']
+            available_leave_hours = client.LeavesDB.LeaveBank.find_one({"employeeID": ObjectId(employee_id)})
             if available_leave_hours is None:
                 available_leave_hours = 0
+            else:
+                available_leave_hours = available_leave_hours['available_hours']
             work_details[0]['available_leave_hours'] = available_leave_hours
             tasks_json = json.dumps(work_details[0], default=str)
             tasks_data = json.loads(tasks_json)
