@@ -35,7 +35,8 @@ class TimesheetRecord:
 class WorkDay:
     def __init__(self, work: bool, hour: int = int(0), comment: str = str("")):
         self.work = work
-        self.hour = hour
+        # hour = 0 if work is false else work
+        self.hour = hour if work else 0
         self.comment = comment
 
     def to_dict(self):

@@ -159,6 +159,8 @@ def del_draft(employee_uuid, timesheet):
             # return working
 
             if timesheet is not None:
+                if 'employeeSheetID' not in timesheet:
+                    return make_response(jsonify({"error": "Timesheet ID not provided"}), 400)
                 # check if the timesheet exists
                 verify = verify_attribute(collection=client.TimesheetDB.EmployeeSheets, key="_id",attr_value=ObjectId(timesheet['employeeSheetID']))
                 if not verify.status_code == 200:
@@ -247,7 +249,7 @@ def get_submitted_timesheets_for_employee(employee_id):
             # if len(employee_tasks[1]) == 0:
             #     employee_tasks = common_tasks
             # # If the employee has tasks, return the employee tasks
-            if len(work_details) > 0:
+            if len(work_details) > 1:
                 # If the employee has tasks and common tasks, merge the common tasks with the employee tasks
                 # For each employee task, add the common tasks to the employee tasks
                 work_details[0]['Projects'].extend(work_details[1]['Projects'])
@@ -353,7 +355,7 @@ def get_draft_timesheets_for_employee(employee_id):
             # if len(employee_tasks[1]) == 0:
             #     employee_tasks = common_tasks
             # # If the employee has tasks, return the employee tasks
-            if len(work_details) > 0:
+            if len(work_details) > 1:
                 # If the employee has tasks and common tasks, merge the common tasks with the employee tasks
                 # For each employee task, add the common tasks to the employee tasks
                 work_details[0]['Projects'].extend(work_details[1]['Projects'])
@@ -458,7 +460,7 @@ def get_timesheets_for_employee(employee_id):
             # if len(employee_tasks[1]) == 0:
             #     employee_tasks = common_tasks
             # # If the employee has tasks, return the employee tasks
-            if len(work_details) > 0:
+            if len(work_details) > 1:
                 # If the employee has tasks and common tasks, merge the common tasks with the employee tasks
                 # For each employee task, add the common tasks to the employee tasks
                 work_details[0]['Projects'].extend(work_details[1]['Projects'])
@@ -659,6 +661,16 @@ def employee_timesheet_operation(employee_uuid, timesheet):
                 employeSheetObjectList = []
                 # store sheet to draft
                 current_monday, next_monday = get_current_week()
+                if 'employeeSheetID' in timesheet:
+                    # verify the sheet ID
+                    verify = verify_attribute(collection=client.TimesheetDB.EmployeeSheets, key="_id",attr_value=timesheet['employeeSheetID'])
+                    if not verify:
+                        return make_response(jsonify({"error": "Timesheet ID is incorrect"}), 400)
+                    # check if employee has access to that timesheet
+                    verify = client.TimesheetDB.EmployeeSheets.find_one({"_id": ObjectId(timesheet['employeeSheetID']), "employeeID": ObjectId(employee_id)})
+                    if verify is None:
+                        return make_response(jsonify({"error": "Employee does not have access to the Timesheet"}), 400)
+
                 for employeesheetobject in timesheet['employeeSheetObjects']:
                     if 'projectID' not in employeesheetobject:
                         return make_response(jsonify({"error": "Project data is missing"}), 400)
@@ -694,7 +706,7 @@ def employee_timesheet_operation(employee_uuid, timesheet):
                     
                     new_employeeSheetObject = EmployeeSheetObject(projectID=ObjectId(employeesheetobject['projectID']), taskID=ObjectId(employeesheetobject['taskID']), billable=employeesheetobject['billable'], workDay=workDay, description=employeesheetobject['description'])
                     employeSheetObjectList.append(new_employeeSheetObject)
-    
+
                 # create new timesheet 
                 # get manager of employee
                 managerID = client.WorkBaseDB.Members.find_one({"_id": ObjectId(employee_id)},{"managerID": "$reportsTo"})['managerID']
@@ -702,6 +714,62 @@ def employee_timesheet_operation(employee_uuid, timesheet):
                     return make_response(jsonify({"error": "Manager not found"}), 400)
                 if 'action' in timesheet:
                     if timesheet['action'].lower() == "draft": 
+                         # check if the total hours of a particular day is equal to 8 accross all the employeeSheetObjects for similar day
+                        # return the total work hour of individual workDay, if work is true for every employeeSheetObject
+                        total_day_hours = {
+                            "mon": 0,
+                            "tue": 0,
+                            "wed": 0,
+                            "thu": 0,
+                            "fri": 0,
+                            "sat": 0,
+                            "sun": 0
+                        }
+                        available_leave_hours = client.LeavesDB.LeaveBank.find_one({"employeeID": ObjectId(employee_id)}, {"available_hours": 1})
+                        if available_leave_hours is None:
+                            return make_response(jsonify({"error": "Failed to get available leave hours"}), 500)
+                        available_leave_hours = available_leave_hours['available_hours']
+                        for employeesheetobject in employeSheetObjectList:
+                            for day in total_day_hours:
+                                if employeesheetobject.workDay[day].work:  # Only add hours if work is True
+                                    total_day_hours[day] += employeesheetobject.workDay[day].hour
+                                else:  # If work is False, it's a holiday, so set hours to 8
+                                    total_day_hours[day] = 'holiday'
+                        
+                        # employee can fill hour in workDay of aparticular day, if it is the same day or before.
+                        # define acceptable days for updating
+                        days_of_week = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun']
+                        current_day_index = days_of_week.index(datetime.today().strftime('%a').lower())
+                        acceptable_days = days_of_week[:current_day_index+1]
+                        # check in total_day_hours, if any day except acceptable_days has hours greater than 0. if yes, return error
+                        for day in total_day_hours:
+                            if day not in acceptable_days and total_day_hours[day] != 'holiday' and total_day_hours[day] > 0:
+                                return make_response(jsonify({"error": "Cannot fill hours for future days"}), 400)
+
+                        total_pto_hours = 0
+                        for day in total_day_hours:
+                            # calculate the date of the day as YYYY-MM-DD in CST
+                            date = (current_monday + timedelta(days=list(total_day_hours.keys()).index(day))).strftime("%Y-%m-%d")
+                            if total_day_hours[day] != 8 and total_day_hours[day] != 'holiday':
+                                # calculate the hours missing
+                                hours_missing = 8 - total_day_hours[day]
+                                total_pto_hours += hours_missing
+
+                        # check if the employee has enough leave hours to cover the missing hours
+                        if total_pto_hours > available_leave_hours:
+                            return make_response(jsonify({"error": "Insufficient leave hours to cover missing work hours"}), 400)
+                       
+                        if 'employeeSheetID' in timesheet:
+                            current_sheet = client.TimesheetDB.EmployeeSheets.find_one({"_id": ObjectId(timesheet['employeeSheetID'])})
+                            if current_sheet is None:
+                                return make_response(jsonify({"error": "Timesheet not found"}), 400)
+                            # check if current sheet status is "draft" or not:
+                            if (current_sheet['status'] == "Draft"):
+                                # delete the timesheet
+                                verify = client.TimesheetDB.EmployeeSheets.delete_one({"_id": ObjectId(timesheet['employeeSheetID'])})
+                            if verify is None:
+                                return make_response(jsonify({"error": "Failed to remove current timesheet"}), 500)
+                            
                         # employeSheetObjectList = [obj.to_dict() for obj in employeSheetObjectList]
                         new_timesheet = EmployeeSheet(employeeID=ObjectId(employee_id), managerID=ObjectId(managerID), employeeSheetObject=employeSheetObjectList, startDate=current_monday, endDate=next_monday, status='Draft')
                         new_timesheet = client.TimesheetDB.EmployeeSheets.insert_one(new_timesheet.to_dict())
@@ -710,6 +778,15 @@ def employee_timesheet_operation(employee_uuid, timesheet):
                         # Return the result message
                         return make_response(jsonify({"message": "Timesheet added as Draft"}), 200)       
                     elif timesheet['action'].lower() == "submit":
+                        # check if employeeID exists in escalation
+                        verify = client.TimesheetDB.EscalationState.find_one({"employeeID": ObjectId(employee_id)})
+                        if verify is None:
+                            # if exists, user cant submit timesheet other than friday
+                            if datetime.today().strftime('%a').lower() != 'fri':
+                                return make_response(jsonify({"error": "Timesheet can only be submitted on Friday"}), 400)
+                        else:
+                            current_monday = current_monday - timedelta(days=7)
+                            next_monday = next_monday - timedelta(days=7)
                         # check if the total hours of a particular day is equal to 8 accross all the employeeSheetObjects for similar day
                         # return the total work hour of individual workDay, if work is true for every employeeSheetObject
                         total_day_hours = {
@@ -731,6 +808,17 @@ def employee_timesheet_operation(employee_uuid, timesheet):
                                     total_day_hours[day] += employeesheetobject.workDay[day].hour
                                 else:  # If work is False, it's a holiday, so set hours to 8
                                     total_day_hours[day] = 'holiday'
+                        
+                        # employee can fill hour in workDay of aparticular day, if it is the same day or before.
+                        # define acceptable days for updating
+                        days_of_week = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun']
+                        current_day_index = days_of_week.index(datetime.today().strftime('%a').lower())
+                        acceptable_days = days_of_week[:current_day_index+1]
+                        # check in total_day_hours, if any day except acceptable_days has hours greater than 0. if yes, return error
+                        for day in total_day_hours:
+                            if day not in acceptable_days and total_day_hours[day] != 'holiday' and total_day_hours[day] > 0:
+                                return make_response(jsonify({"error": "Cannot fill hours for future days"}), 400)
+
                         total_pto_hours = 0
                         for day in total_day_hours:
                             # calculate the date of the day as YYYY-MM-DD in CST
@@ -762,16 +850,16 @@ def employee_timesheet_operation(employee_uuid, timesheet):
                         # create manager Sheet Review object
                         # create new ManagerSheetReview document
                         if 'employeeSheetID' in timesheet:
-                            # return make_response(jsonify({"message": "working"}), 200)
-                            verify = verify_attribute(collection=client.TimesheetDB.EmployeeSheets, key="_id",attr_value=ObjectId(timesheet['employeeSheetID']))
-                            if not verify.status_code == 200:
-                                # If the connection fails, return the error response
-                                return make_response(jsonify({"error": "Failed to verify timesheet"}), 500)
+                            # # return make_response(jsonify({"message": "working"}), 200)
+                            # verify = verify_attribute(collection=client.TimesheetDB.EmployeeSheets, key="_id",attr_value=ObjectId(timesheet['employeeSheetID']))
+                            # if not verify.status_code == 200:
+                            #     # If the connection fails, return the error response
+                            #     return make_response(jsonify({"error": "Failed to verify timesheet"}), 500)
                             current_sheet = client.TimesheetDB.EmployeeSheets.find_one({"_id": ObjectId(timesheet['employeeSheetID'])})
                             if current_sheet is None:
                                 return make_response(jsonify({"error": "Timesheet not found"}), 400)
                             # check if current sheet status is "draft" or not:
-                            if current_sheet['status'] == "Returned" and current_sheet['returnMessage'] is not None:
+                            if (current_sheet['status'] == "Returned" and current_sheet['returnMessage'] is not None) or (current_sheet['status'] == "Draft"):
                                 # delete the timesheet
                                 verify = client.TimesheetDB.EmployeeSheets.delete_one({"_id": ObjectId(timesheet['employeeSheetID'])})
                             if verify is None:
@@ -1085,7 +1173,7 @@ def get_employee_assignments(employee_id):
             # if len(employee_tasks[1]) == 0:
             #     employee_tasks = common_tasks
             # # If the employee has tasks, return the employee tasks
-            if len(work_details) > 0:
+            if len(work_details) > 1:
                 # If the employee has tasks and common tasks, merge the common tasks with the employee tasks
                 # For each employee task, add the common tasks to the employee tasks
                 work_details[0]['Projects'].extend(work_details[1]['Projects'])
