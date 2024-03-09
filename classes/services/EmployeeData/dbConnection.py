@@ -16,7 +16,7 @@ import os
 from bson.binary import UuidRepresentation
 from uuid import UUID
 
-#to create expiry time of token (15mins)
+#to create expiry time of token (1 day)
 from datetime import datetime, timedelta
 
 #upload documents
@@ -40,58 +40,64 @@ import jwt
 mongo_host = os.environ.get("MONGO_HOST_prim")
 
 #python-mongo connection string
-# connection_string = f"mongodb+srv://admin:EC2024@employeeportal.yyyw48g.mongodb.net/"
 uri = mongo_host
 client = MongoClient(uri, server_api=ServerApi('1'), UuidRepresentation="standard")
-db = client.sample_employee
-employeeData = client.sample_employee.employeeData
-# userProvisioningData = client.sample_employee.UserProvisioningData
+
+db = client.EmployeeDB
+
+employeeData = client.EmployeeDB.employeeData
+
 fs = GridFS(db)  
 fs = GridFS(db, collection='employeeData')
 
 def checkUserValidity(id):
     try:
-        #set total Active employees
-        setTotalEmployees()
-
-
         # print(UUID(uid))
         #get the user by matching the uuid from db
         # user = userProvisioningData.find_one({'id':UUID(uid)},{'_id':0,'Name':1,'id':1})
         user = employeeData.find_one({'id':UUID(id)},{'_id':0,'FirstName':1,'LastName':1,'id':1,"Role":1,"status":1})
-        if user['status'] == 'Active':
-            user['id'] = str(user['id']) #uuid cant be sent directly, convert to string first
-            # print(user)
-
-            #create a token
-
-            #set expiry time of token
-            exp_time = datetime.now() + timedelta(days=1) #1 day expiry time
-            exp_epoch_time = int(exp_time.timestamp())
-            # print(exp_epoch_time)
-
-            #payload
-            payload = {
-                "payload": user,
-                "exp": exp_epoch_time
-            }
-            # print(payload)
-
-            #secret key
-            secret = os.environ.get('SECRET_KEY')
-            algo = os.environ.get('ALGORITHM')
-            # print(algo)
-
-            #jwtoken
-            jwtoken = jwt.encode(payload, secret, algorithm=algo)
-            # print(jwt.encode(payload, secret, algorithm=algo))
-
-            #set total active employees
+        if user:
+            #set total Active employees
             setTotalEmployees()
+            if user['status'] == 'Active':
+                user['id'] = str(user['id']) #uuid cant be sent directly, convert to string first
+                # print(user)
 
-            return make_response({"token":jwtoken}, 200)
-        elif user['status'] == 'Non-Active':
-            return make_response({"ERROR":"User is Not-Active"})
+                profile_picture = get_profile_picture(id)
+                if profile_picture is None:
+                    profile_picture=""
+
+                #create a token
+
+                #set expiry time of token
+                exp_time = datetime.now() + timedelta(days=1) #1 day expiry time
+                exp_epoch_time = int(exp_time.timestamp())
+                # print(exp_epoch_time)
+
+                #payload
+                payload = {
+                    "payload": user,
+                    "exp": exp_epoch_time
+                }
+                # print(payload)
+
+                #secret key
+                secret = os.environ.get('SECRET_KEY')
+                algo = os.environ.get('ALGORITHM')
+                # print(algo)
+
+                #jwtoken
+                jwtoken = jwt.encode(payload, secret, algorithm=algo)
+                # print(jwt.encode(payload, secret, algorithm=algo))
+
+                #set total active employees
+                setTotalEmployees()
+
+                return make_response({"token":jwtoken,"profile_picture":profile_picture}, 200)
+            elif user['status'] == 'Non-Active':
+                return make_response({"ERROR":"User is Not-Active"}, 500)
+        else:
+            return make_response({"ERROR":"No User Found"}, 404)
 
     except Exception as e:
         # print(e)
@@ -110,14 +116,16 @@ def get_profile_picture(id):
             file_extension = file_doc.content_type.split("/")[1]
             encoded_image = base64.b64encode(file_doc.read()).decode('utf-8')
             return f"data:image/{file_extension};base64,{encoded_image}"
+        else:
+            return ""
     except Exception as e:
-        return None
+        return str(e)
 
 #get data from mongodb
 def get_employee_data(id):
     try:
         
-        employee = list(employeeData.find({'id':UUID(id)},{'_id':0,'id':1,'emp_id':1,'FirstName':1,'LastName':1,'mail':1,'team':1,'Designation':1,'ContactNo':1,'Address':1,'ReportingTo':1,'status':1,'Date_of_Joining':1,'Emergency_Contact_Name':1,'Emergency_Contact_Number':1,'Emergency_Relation':1,'Certificate_Name':1, 'profile_picture_id':1}))[0]
+        employee = list(employeeData.find({'id':UUID(id)},{'_id':0,'id':1,'emp_id':1,'FirstName':1,'LastName':1,'mail':1,'team':1,'Designation':1,'ContactNo':1,'Address':1,'ReportingTo':1,'status':1,'Date_of_Joining':1,'Emergency_Contact_Name':1,'Emergency_Contact_Number':1,'Emergency_Relation':1,'Certificate_Name':1, 'profile_picture_id':1, 'Last_modification':1}))[0]
         if "profile_picture_id" not in employee:
             employee["profile_picture_id"] = ""
         else:
@@ -157,6 +165,7 @@ def edit_employee_data(data_obj, id):
         #send these object fields to database
         # print(data_obj)
         # print(id)
+        data_obj['Last_modification'] = datetime.today().strftime('%Y-%m-%d')
         data_obj = {
             "$set":data_obj
         }
@@ -189,7 +198,7 @@ def check_documents(id):
         # print(obj)
         return make_response({"Message":obj}, 200)
     else:
-        return make_response({"Message":obj}, 200)
+        return make_response({"message":"No File Data"}, 200)
     # except Exception as e:
     #     return make_response({"ERROR":str(e)})
 
@@ -279,10 +288,10 @@ def Upload_profile_picture(id):
     try:
         
             profile_picture = request.files['profile_picture']
-            print(profile_picture)
+            # print(profile_picture)
             if profile_picture is not None:
                 filename = secure_filename(profile_picture.filename)
-                print(f"Uploading profile picture: {filename}")
+                # print(f"Uploading profile picture: {filename}")
                   
             # Fetch the user from MongoDB based on the unique ID
                 employeeData = db.employeeData.find_one({'id': UUID(id)})
@@ -293,7 +302,7 @@ def Upload_profile_picture(id):
                     # Delete the previous profile picture
                         previous_picture_id = existing_user['profile_picture_id']
                         fs.delete(previous_picture_id)
-                        print(f"Previous profile picture deleted for user {id}.")
+                        # print(f"Previous profile picture deleted for user {id}.")
     
         
             

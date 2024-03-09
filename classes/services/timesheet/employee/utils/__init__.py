@@ -713,6 +713,8 @@ def employee_timesheet_operation(employee_uuid, timesheet):
                 if managerID is None:
                     return make_response(jsonify({"error": "Manager not found"}), 400)
                 if 'action' in timesheet:
+
+                    # Save Draft Operation--------------------------------
                     if timesheet['action'].lower() == "draft": 
                          # check if the total hours of a particular day is equal to 8 accross all the employeeSheetObjects for similar day
                         # return the total work hour of individual workDay, if work is true for every employeeSheetObject
@@ -776,9 +778,12 @@ def employee_timesheet_operation(employee_uuid, timesheet):
                         if new_timesheet is None:
                             return make_response(jsonify({"error": "Failed to create Timesheet"}), 500)
                         # Return the result message
-                        return make_response(jsonify({"message": "Timesheet added as Draft"}), 200)       
+                        return make_response(jsonify({"message": "Timesheet added as Draft"}), 200) 
+
+                    # Submit Timesheet Operation----------------------------
                     elif timesheet['action'].lower() == "submit":
                         # check if employeeID exists in escalation
+                        escalated_state = False
                         verify = client.TimesheetDB.EscalationState.find_one({"employeeID": ObjectId(employee_id)})
                         if verify is None:
                             # if exists, user cant submit timesheet other than friday
@@ -787,6 +792,7 @@ def employee_timesheet_operation(employee_uuid, timesheet):
                         else:
                             current_monday = current_monday - timedelta(days=7)
                             next_monday = next_monday - timedelta(days=7)
+                            escalated_state = True
                         # check if the total hours of a particular day is equal to 8 accross all the employeeSheetObjects for similar day
                         # return the total work hour of individual workDay, if work is true for every employeeSheetObject
                         total_day_hours = {
@@ -815,9 +821,10 @@ def employee_timesheet_operation(employee_uuid, timesheet):
                         current_day_index = days_of_week.index(datetime.today().strftime('%a').lower())
                         acceptable_days = days_of_week[:current_day_index+1]
                         # check in total_day_hours, if any day except acceptable_days has hours greater than 0. if yes, return error
-                        for day in total_day_hours:
-                            if day not in acceptable_days and total_day_hours[day] != 'holiday' and total_day_hours[day] > 0:
-                                return make_response(jsonify({"error": "Cannot fill hours for future days"}), 400)
+                        if not escalated_state:
+                            for day in total_day_hours:
+                                if day not in acceptable_days and total_day_hours[day] != 'holiday' and total_day_hours[day] > 0:
+                                    return make_response(jsonify({"error": "Cannot fill hours for future days"}), 400)
 
                         total_pto_hours = 0
                         for day in total_day_hours:
@@ -838,7 +845,7 @@ def employee_timesheet_operation(employee_uuid, timesheet):
                                 return make_response(jsonify({"error": "Description field must have text"}), 400)
 
                         # check if same week has already submitted or reviewing timesheets
-                        submitted_timesheets = client.TimesheetDB.EmployeeSheets.find_one({"employeeID": ObjectId(employee_id), "startDate": current_monday, "endDate": next_monday, "status": {"$in": ["Reviewing"]}})
+                        submitted_timesheets = client.TimesheetDB.EmployeeSheets.find_one({"employeeID": ObjectId(employee_id), "startDate": current_monday, "endDate": next_monday, "status": {"$in": ["Reviewing", "Submitted"]}})
                         if submitted_timesheets is not None:
                             return make_response(jsonify({"error": "Timesheet for this week already exists"}), 400)
                         # create new timesheet                        
@@ -1222,7 +1229,7 @@ def get_work_schedule(employeeID):
             end_of_week = start_of_week + timedelta(days=6, hours=23, minutes=59, seconds=59)  # Set time to 11:59PM
             employeeID = ObjectId(employeeID)
             employeeDataID = client.WorkBaseDB.Members.find_one({"_id": employeeID}, {"employeeDataID": 1})["employeeDataID"]
-            employeeData = client.sample_employee.employeeData.find_one({"_id": employeeDataID})
+            employeeData = client.EmployeeDB.employeeData.find_one({"_id": employeeDataID})
             employee_country = employeeData["Country"]
             employee_zone = employeeData["Zone"]
             # If employee_zone is not a list, convert it to a list

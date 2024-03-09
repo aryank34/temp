@@ -20,16 +20,22 @@ import msal
 import requests
 import json
 
+from pymongo.server_api import ServerApi
+
 # import requests
 # import sys
 # print(sys.path)
 
 load_dotenv(find_dotenv())
-mongo_password = os.environ.get("MONGO_PWD")
-connection_string = f"mongodb+srv://admin:{mongo_password}@employeeportal.yyyw48g.mongodb.net/?retryWrites=true&w=majority"
-client = MongoClient(connection_string, UuidRepresentation="standard")
+# mongo_password = os.environ.get("MONGO_PWD")
+# connection_string = f"mongodb+srv://admin:{mongo_password}@employeeportal.yyyw48g.mongodb.net/?retryWrites=true&w=majority"
+# client = MongoClient(connection_string, UuidRepresentation="standard")
 
-employeeData = client.sample_employee.employeeData
+mongo_host = os.environ.get("MONGO_HOST_prim")
+uri = mongo_host
+client = MongoClient(uri, server_api=ServerApi('1'), UuidRepresentation="standard")
+
+employeeData = client.EmployeeDB.employeeData
 
 # def getUsers():
 def getUsers(page, limit):

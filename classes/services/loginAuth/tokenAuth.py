@@ -3,7 +3,7 @@ from pymongo import MongoClient
 #load and find the env file
 from dotenv import load_dotenv, find_dotenv
 import os
-
+from pymongo.server_api import ServerApi
 #jwt
 import jwt
 
@@ -17,14 +17,14 @@ class tokenAuth:
     def __init__(self):
         try:
             load_dotenv(find_dotenv())
-            mongo_password = os.environ.get("MONGO_PWD")
+            mongo_host = os.environ.get("MONGO_HOST_prim")
 
             #python-mongo connection string
-            connection_string = f"mongodb+srv://admin:{mongo_password}@employeeportal.yyyw48g.mongodb.net/?retryWrites=true&w=majority"
-            client = MongoClient(connection_string, UuidRepresentation="standard")
-            # employeeData = client.sample_employee.employeeData
-            # userProvisioningData = client.sample_employee.UserProvisioningData
-            self.endpointData = client.sample_employee.EndpointData
+            uri = mongo_host
+            client = MongoClient(uri, server_api=ServerApi('1'), UuidRepresentation="standard")
+
+            
+            self.endpointData = client.EmployeeDB.EndpointData
 
         except Exception as e:
             print("some error in authMongo connection with mongo")

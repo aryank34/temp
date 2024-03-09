@@ -28,3 +28,4 @@ Werkzeug
 flask_mail
 apscheduler
 msal
+flask_socketio

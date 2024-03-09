@@ -36,7 +36,7 @@ def get_WorkAccount(client, uid):
     """
     try:
         # Access the 'employeeData' collection
-        employeeData_collection = client.sample_employee.employeeData
+        employeeData_collection = client.EmployeeDB.employeeData
         # Check if the user ID exists in the collection
         user_accountID = employeeData_collection.find_one({"id": UUID(uid)}, {"_id": 1})
         # return make_response(jsonify({"message": "working"}), 200)

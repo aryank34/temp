@@ -1,0 +1,16 @@
+2024-03-08 14:47:34,561 - INFO - [EXEC] Starting scheduler...
+2024-03-08 14:47:34,562 - INFO - [EXEC] Adding Jobs...
+2024-03-08 14:47:34,615 - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2024-03-08 14:47:34,615 - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2024-03-08 14:47:34,616 - INFO - Added job "submitted_timesheets_check" to job store "default"
+2024-03-08 14:47:34,616 - INFO - Added job "submitted_timesheets_check" to job store "default"
+2024-03-08 14:47:34,616 - INFO - Scheduler started
+2024-03-08 14:47:34,617 - INFO - [OK] --- Scheduler started successfully.
+2024-03-09 11:06:08,471 - INFO - [EXEC] Starting scheduler...
+2024-03-09 11:06:08,471 - INFO - [EXEC] Adding Jobs...
+2024-03-09 11:06:10,702 - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2024-03-09 11:06:10,702 - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2024-03-09 11:06:10,703 - INFO - Added job "submitted_timesheets_check" to job store "default"
+2024-03-09 11:06:10,703 - INFO - Added job "submitted_timesheets_check" to job store "default"
+2024-03-09 11:06:10,703 - INFO - Scheduler started
+2024-03-09 11:06:10,704 - INFO - [OK] --- Scheduler started successfully.

@@ -345,6 +345,13 @@ def get_review_timesheets_for_manager(client, manager_id):
 
         activity = list(client.WorkBaseDB.ProjectActivity.aggregate(activity_pipeline))
 
+        # if any Project in activity has Employee as a name "All EMPLOYEES", then get all employees and append it to the Employee List
+        for project in activity:
+            for employee in project['Project']['Employees']:
+                if employee['employeeName'] == "All EMPLOYEES":
+                    all_employees = list(client.WorkBaseDB.Members.find({}, {"_id": 0, "employeeID": "$_id", "employeeName": "$name", "role": "$role"}))
+                    project['Project']['Employees'] = all_employees
+
         filtered_timesheets = timesheets
         # replace projectID with project:{projectName: <ProjectName>, projectId: <ProjectID>} and taskID with task:{taskName: <TaskName>, taskId: <TaskID>} and employeeID with employee:{employeeName: <EmployeeName>, employeeId: <employeeIDID>} in the timesheet using the employee_tasks dictionary
         # Create dictionaries for projects and tasks
@@ -485,8 +492,14 @@ def get_submitted_timesheets_for_manager(client, manager_id):
 
         activity = list(client.WorkBaseDB.ProjectActivity.aggregate(activity_pipeline))
 
-        filtered_timesheets = timesheets
+        # if any Project in activity has Employee as a name "All EMPLOYEES", then get all employees and append it to the Employee List
+        for project in activity:
+            for employee in project['Project']['Employees']:
+                if employee['employeeName'] == "All EMPLOYEES":
+                    all_employees = list(client.WorkBaseDB.Members.find({}, {"_id": 0, "employeeID": "$_id", "employeeName": "$name", "role": "$role"}))
+                    project['Project']['Employees'] = all_employees
 
+        filtered_timesheets = timesheets
         # replace projectID with project:{projectName: <ProjectName>, projectId: <ProjectID>} and taskID with task:{taskName: <TaskName>, taskId: <TaskID>} and employeeID with employee:{employeeName: <EmployeeName>, employeeId: <employeeIDID>} in the timesheet using the employee_tasks dictionary
         # Create dictionaries for projects and tasks
 

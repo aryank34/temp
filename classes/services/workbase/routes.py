@@ -20,7 +20,7 @@ def get_projects():
             # Get the 'uid' from the request's JSON data
             # uid = request.json.get("uid")
             uuid = tokenAuth.token_decode(request.headers.get('Authorization'))['payload']['id']
-
+            # return make_response(jsonify({"message": "working"}), 200)
             superAdmin = bool(isSuperAdmin(uuid).json['response'])
             # Call the userType function from the utils module
             user_type = userType(uuid).json['userType']

@@ -48,6 +48,7 @@ def editEmployeeData():
             Emergency_Contact_Name = request.json.get('Emergency_Contact_Name')
             Emergency_Contact_Number = request.json.get('Emergency_Contact_Number')
             Emergency_Relation = request.json.get('Emergency_Relation')
+            Date_of_Joining = request.json.get("Date_of_Joining")
 
             #use after frontend sends the correct token with this data - i think
             # payload = tokenAuth.token_decode(request.headers.get('Authorization'))['payload']
@@ -67,6 +68,7 @@ def editEmployeeData():
                     "LastName":LastName,
                     "ContactNo":ContactNo,
                     "Address":Address,
+                    "Date_of_Joining":Date_of_Joining,
                     "Emergency_Contact_Name":Emergency_Contact_Name,
                     "Emergency_Contact_Number":Emergency_Contact_Number,
                     "Emergency_Relation":Emergency_Relation}
